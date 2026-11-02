@@ -125,6 +125,49 @@ class DakanuMatch(TypedDict):
     teamKills: int | None
 
 
+class DakanuMatchPlayer(TypedDict):
+    playerId: str
+    nickname: str
+    avatarId: int
+    teamId: str
+    teamLabel: str
+    roleId: int
+    roleName: str
+    kills: int
+    knockdowns: int | None
+    assists: int
+    deaths: int
+    damage: int
+    score: int
+    personalScore: int | None
+    strategyScore: int | None
+    teamworkScore: int | None
+    result: str
+    mvp: bool
+    svp: bool
+    isTarget: bool
+
+
+class DakanuMatchTeam(TypedDict):
+    id: str
+    label: str
+    players: list[DakanuMatchPlayer]
+
+
+class DakanuMatchDetail(TypedDict, total=False):
+    ok: bool
+    roomId: str
+    summary: object | None
+    teams: list[DakanuMatchTeam]
+    rounds: list[object]
+    hasDetail: bool
+    viewerPlayerId: str | None
+    scoreboardViewerPlayerId: str | None
+    upstreamCode: int
+    viewerFallback: object | None
+    cached: bool
+
+
 class DakanuRefreshError(TypedDict):
     message: str
     code: str
@@ -319,6 +362,49 @@ def _fetch_profile_sync(player_id: str) -> DakanuProfile:
 async def fetch_profile(player_id: str) -> DakanuProfile:
     """在线程池读取玩家缓存档案，避免阻塞事件循环。"""
     return await _fetch_profile_sync(player_id)
+
+
+def _is_match_detail_response(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if "ok" not in value or value["ok"] is not True:
+        return False
+    if "roomId" not in value or not isinstance(value["roomId"], str):
+        return False
+    if "teams" not in value or not isinstance(value["teams"], list):
+        return False
+    return "rounds" in value and isinstance(value["rounds"], list)
+
+
+@to_thread
+def _fetch_match_detail_sync(player_id: str, room_id: str) -> DakanuMatchDetail | None:
+    url = f"{BASE_URL}/api/match/{room_id}"
+    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        response = client.get(url, params={"player": player_id})
+    if response.status_code == 404:
+        return None
+    if response.status_code == 429:
+        raise DakanuError("对局详情查询过于频繁，请稍后再试。")
+    if response.status_code in {502, 503, 504}:
+        raise DakanuError("战绩站暂时无法读取对局详情，请稍后再试。")
+    if response.status_code != 200:
+        logger.warning(f"[卡拉彼丘·最近对局] 读取对局 {room_id} 返回 HTTP {response.status_code}")
+        return None
+    try:
+        payload: object = response.json()
+    except ValueError:
+        logger.warning(f"[卡拉彼丘·最近对局] 对局 {room_id} 返回非 JSON 响应")
+        return None
+    if not _is_match_detail_response(payload):
+        logger.warning(f"[卡拉彼丘·最近对局] 对局 {room_id} 响应结构异常")
+        return None
+    details: DakanuMatchDetail = payload
+    return details
+
+
+async def fetch_match_detail(player_id: str, room_id: str) -> DakanuMatchDetail | None:
+    """读取单场对局详情；无详情时返回 None。"""
+    return await _fetch_match_detail_sync(player_id, room_id)
 
 
 def _is_refresh_response(value: object) -> bool:

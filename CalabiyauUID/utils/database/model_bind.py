@@ -143,6 +143,14 @@ class CalabiyauBind(BaseBotIDModel, table=True):
         return True, was_main, current_main.game_uid if current_main is not None else None
 
 
+async def get_main_uid(bot_id: str, user_id: str) -> str | None:
+    binds = await CalabiyauBind.get_binds(bot_id, user_id)
+    if not binds:
+        return None
+    current = next((bind for bind in binds if bind.is_main), binds[0])
+    return current.game_uid
+
+
 @site.register_admin
 class CalabiyauBindAdmin(GsAdminModel):
     pk_name = "id"

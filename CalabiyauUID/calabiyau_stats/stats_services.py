@@ -17,21 +17,13 @@ from ..utils.helper.assets import (
 )
 from ..utils.helper.refresh import refresh_player_data
 from ..utils.helper.player_data import PlayerSnapshot, load_player_snapshot
-from ..utils.database.model_bind import CalabiyauBind
+from ..utils.database.model_bind import get_main_uid
 from ..utils.render.html.summary_card import (
     SummaryAssets,
     tier_index,
     render_summary_card,
     challenge_tier_index,
 )
-
-
-async def _main_uid(bot_id: str, user_id: str) -> str | None:
-    binds = await CalabiyauBind.get_binds(bot_id, user_id)
-    if not binds:
-        return None
-    current = next((bind for bind in binds if bind.is_main), binds[0])
-    return current.game_uid
 
 
 async def resolve_player_id(ev: Event) -> tuple[str, str | None]:
@@ -45,7 +37,7 @@ async def resolve_player_id(ev: Event) -> tuple[str, str | None]:
     at_target = ev.at.strip() if ev.at is not None else ""
     is_self_at = at_target in {ev.bot_id, ev.real_bot_id, ev.bot_self_id}
     target_user = ev.user_id if not at_target or is_self_at else at_target
-    player_id = await _main_uid(ev.bot_id, target_user)
+    player_id = await get_main_uid(ev.bot_id, target_user)
     if player_id is not None:
         return player_id, None
     if target_user == ev.user_id:

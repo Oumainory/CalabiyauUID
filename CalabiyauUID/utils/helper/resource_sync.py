@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 
 import httpx
 
+from gsuid_core.i18n import t
 from gsuid_core.pool import to_thread
 from gsuid_core.logger import logger
 from gsuid_core.server import on_core_start
@@ -13,6 +14,8 @@ from gsuid_core.server import on_core_start
 from ..utils.paths import DATA_DIR
 
 RESOURCE_BASE_URL = "https://klbq.sssysy.top/"
+_RESOURCE_TAG = "[卡拉彼丘]"
+_PLUGIN_NAME = "CalabiyauUID"
 _LIST_TIMEOUT = 30.0
 _DOWNLOAD_TIMEOUT = 120.0
 _DOWNLOAD_CONCURRENCY = 8
@@ -63,7 +66,18 @@ async def download_resource_file(client: httpx.AsyncClient, key: str, semaphore:
     target = DATA_DIR / PurePosixPath(key)
     url = RESOURCE_BASE_URL + key
     async with semaphore:
-        logger.debug(f"[卡拉彼丘·资源下载] 开始下载：{url}")
+        path = PurePosixPath(key)
+        logger.info(
+            t(
+                "log.download.tag_plugin_name",
+                TAG=_RESOURCE_TAG,
+                plugin_name=_PLUGIN_NAME,
+                endpoint=str(path.parent),
+                name=path.name,
+            )
+        )
+        logger.info(t("log.download.tag_name_start_download", tag=_RESOURCE_TAG, name=path.name))
+        logger.info(t("log.resource_download.tag_url", tag=_RESOURCE_TAG, url=url))
         try:
             response = await client.get(url, timeout=_DOWNLOAD_TIMEOUT)
         except (httpx.HTTPError, OSError) as exc:
@@ -81,7 +95,7 @@ async def download_resource_file(client: httpx.AsyncClient, key: str, semaphore:
         except OSError as exc:
             logger.warning(f"[卡拉彼丘·资源下载] 写入失败 {key}：{exc}")
             return False
-        logger.debug(f"[卡拉彼丘·资源下载] 下载完毕：{url}")
+        logger.success(t("log.download.tag_name_download_done", tag=_RESOURCE_TAG, name=path.name))
         return True
 
 

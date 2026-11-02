@@ -1,5 +1,6 @@
 """插件数据仓库中的本地素材路径。"""
 
+import base64
 from pathlib import Path
 
 from ..utils.paths import DATA_DIR
@@ -57,6 +58,11 @@ def local_map_image(map_id: int) -> Path | None:
     return _local_id_image("maps", map_id, "by-id")
 
 
+def local_map_slug_image(slug: str) -> Path | None:
+    """地图宽图使用站点 slug，例如 map-01。"""
+    return _image_with_suffix(ASSET_DIR / "maps" / slug)
+
+
 def local_medal_image(medal_id: int) -> Path | None:
     """勋章使用接口里的 medals[].id。"""
     return _local_id_image("medals", medal_id)
@@ -96,3 +102,17 @@ def local_faction_image(camp_code: int) -> Path | None:
 def local_position_icon(position_code: int) -> Path | None:
     path = ASSET_DIR / "factions" / f"position-{position_code}.svg"
     return _existing_image(path)
+
+
+def image_data_uri(content: bytes, suffix: str) -> str:
+    """把图片字节编码成 pytakumi 可读取的 data URI。"""
+    mime_types: dict[str, str] = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }
+    normalized = suffix.lower()
+    mime = mime_types[normalized] if normalized in mime_types else "image/webp"
+    return f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"

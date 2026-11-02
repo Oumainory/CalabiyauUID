@@ -5,7 +5,7 @@
     <img src="ICON.png" width="162" height="162" alt="CalabiyauUID">
   </a>
 </p>
-<h1 align="center">Calabiyau 0.1.0</h1>
+<h1 align="center">CalabiyauUID 0.1.0</h1>
 <h4 align="center">基于 gsuid_core 的 全功能卡拉彼丘插件</h4>
 
 <p align="center">
@@ -39,6 +39,7 @@
 | `kq切换 1234567` | 在已绑定账号间切换，不传默认切换下一个 |
 | `kq战绩总览` | 查看当前账号的生涯总览卡片 |
 | `kq战绩总览 1234567` | 查看指定 UID 的生涯总览卡片 |
+| `kq历史战绩` | 查看当前账号最近 8 场对局 |
 
 </details>
 
