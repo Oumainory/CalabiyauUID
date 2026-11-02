@@ -1,130 +1,96 @@
-"""启动后同步资源文件，只补本地缺失文件。"""
+"""启动后从资源仓库同步素材。"""
 
-import json
+import re
 import asyncio
-from pathlib import Path, PurePosixPath
 
-import httpx
-
-from gsuid_core.i18n import t
-from gsuid_core.pool import to_thread
 from gsuid_core.logger import logger
 from gsuid_core.server import on_core_start
+from gsuid_core.utils.plugins_update.git_async import (
+    GIT_CLONE_TIMEOUT,
+    run_git,
+    git_clone,
+    git_reset_hard,
+    git_get_current_commit,
+)
 
-from ..utils.paths import DATA_DIR
+from ..utils.paths import RESOURCE_DIR
 
-RESOURCE_BASE_URL = "https://klbq.sssysy.top/"
-_RESOURCE_TAG = "[卡拉彼丘]"
-_PLUGIN_NAME = "CalabiyauUID"
-_LIST_TIMEOUT = 30.0
-_DOWNLOAD_TIMEOUT = 120.0
-_DOWNLOAD_CONCURRENCY = 8
-_IGNORED_NAMES = frozenset({".openlist"})
-
-
-def parse_resource_keys(value: object) -> list[str]:
-    """从资源列表 JSON 中提取可安全落盘的文件 key。"""
-    if not isinstance(value, list):
-        return []
-    keys: list[str] = []
-    for item in value:
-        if not isinstance(item, str) or not item or item.endswith("/"):
-            continue
-        path = PurePosixPath(item)
-        if path.is_absolute() or ".." in path.parts or "\\" in item:
-            continue
-        if path.name in _IGNORED_NAMES:
-            continue
-        keys.append(item)
-    return sorted(set(keys))
+RESOURCE_REPO_URL = "https://cnb.cool/shiysssysy/CalabiyauUID-resourse"
+_RESOURCE_TAG = "[卡拉彼丘·资源更新]"
+_update_lock = asyncio.Lock()
 
 
-def missing_resource_keys(keys: list[str], data_dir: Path) -> list[str]:
-    """返回数据目录中不存在或为空的文件 key。"""
-    missing: list[str] = []
-    for key in keys:
-        local = data_dir / PurePosixPath(key)
-        if not local.is_file() or local.stat().st_size <= 0:
-            missing.append(key)
-    return missing
+def _is_git_repo() -> bool:
+    return (RESOURCE_DIR / ".git").is_dir()
 
 
-def _write_file(content: bytes, target: Path) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(target.name + ".part")
-    temporary.write_bytes(content)
-    temporary.replace(target)
+async def _detect_default_branch() -> str | None:
+    remote = "origin" if _is_git_repo() else RESOURCE_REPO_URL
+    retcode, stdout, _ = await run_git(RESOURCE_DIR, "ls-remote", "--symref", remote, "HEAD")
+    if retcode != 0:
+        return None
+    match = re.search(r"ref:\s+refs/heads/(\S+)", stdout)
+    return match.group(1) if match is not None else None
 
 
-async def fetch_resource_keys(client: httpx.AsyncClient) -> list[str]:
-    response = await client.get(RESOURCE_BASE_URL, timeout=_LIST_TIMEOUT)
-    response.raise_for_status()
-    return parse_resource_keys(response.json())
+async def update_resources() -> bool:
+    async with _update_lock:
+        branch = await _detect_default_branch()
+        if branch is None:
+            logger.warning(f"{_RESOURCE_TAG} 无法获取资源仓库默认分支")
+            return False
 
-
-async def download_resource_file(client: httpx.AsyncClient, key: str, semaphore: asyncio.Semaphore) -> bool:
-    target = DATA_DIR / PurePosixPath(key)
-    url = RESOURCE_BASE_URL + key
-    async with semaphore:
-        path = PurePosixPath(key)
-        logger.info(
-            t(
-                "log.download.tag_plugin_name",
-                TAG=_RESOURCE_TAG,
-                plugin_name=_PLUGIN_NAME,
-                endpoint=str(path.parent),
-                name=path.name,
+        if not _is_git_repo():
+            success, message = await git_clone(
+                RESOURCE_REPO_URL,
+                RESOURCE_DIR,
+                branch=branch,
+                depth=1,
+                timeout=GIT_CLONE_TIMEOUT,
             )
+            if not success:
+                logger.warning(f"{_RESOURCE_TAG} 首次克隆失败：{message}")
+                return False
+            logger.success(f"{_RESOURCE_TAG} 资源仓库首次克隆完成")
+            return True
+
+        old_head = await git_get_current_commit(RESOURCE_DIR)
+        retcode, stdout, stderr = await run_git(
+            RESOURCE_DIR,
+            "fetch",
+            "--depth=1",
+            "--",
+            "origin",
+            branch,
+            timeout=GIT_CLONE_TIMEOUT,
         )
-        logger.info(t("log.download.tag_name_start_download", tag=_RESOURCE_TAG, name=path.name))
-        logger.info(t("log.resource_download.tag_url", tag=_RESOURCE_TAG, url=url))
-        try:
-            response = await client.get(url, timeout=_DOWNLOAD_TIMEOUT)
-        except (httpx.HTTPError, OSError) as exc:
-            logger.warning(f"[卡拉彼丘·资源下载] 下载失败 {key}：{exc}")
+        if retcode != 0:
+            logger.warning(f"{_RESOURCE_TAG} 拉取失败：{stderr or stdout}")
             return False
-        if response.status_code != 200 or not response.content:
-            logger.warning(f"[卡拉彼丘·资源下载] 下载失败 {key} HTTP {response.status_code}")
+
+        success, message = await git_reset_hard(RESOURCE_DIR, "FETCH_HEAD")
+        if not success:
+            logger.warning(f"{_RESOURCE_TAG} 更新失败：{message}")
             return False
-        expected = response.headers.get("content-length")
-        if expected is not None and expected.isdigit() and int(expected) != len(response.content):
-            logger.warning(f"[卡拉彼丘·资源下载] 下载内容不完整 {key}，将下次重试")
+
+        new_head = await git_get_current_commit(RESOURCE_DIR)
+        if not new_head:
+            logger.warning(f"{_RESOURCE_TAG} 无法读取资源仓库版本")
             return False
-        try:
-            await to_thread(_write_file)(response.content, target)
-        except OSError as exc:
-            logger.warning(f"[卡拉彼丘·资源下载] 写入失败 {key}：{exc}")
-            return False
-        logger.success(t("log.download.tag_name_download_done", tag=_RESOURCE_TAG, name=path.name))
+        if old_head == new_head:
+            logger.info(f"{_RESOURCE_TAG} 资源已是最新")
+        else:
+            logger.success(f"{_RESOURCE_TAG} 资源更新完成")
         return True
-
-
-async def sync_missing_files(rounds: int = 2) -> tuple[int, int, int]:
-    """返回（资源数、各轮缺失合计、下载成功合计）。"""
-    total = 0
-    missing_total = 0
-    succeeded = 0
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        for index in range(rounds):
-            keys = await fetch_resource_keys(client)
-            total = len(keys)
-            missing = missing_resource_keys(keys, DATA_DIR)
-            logger.info(f"[卡拉彼丘·资源下载] 第 {index + 1} 轮：资源 {total} 项，本地缺失 {len(missing)} 项")
-            if not missing:
-                break
-            missing_total += len(missing)
-            semaphore = asyncio.Semaphore(_DOWNLOAD_CONCURRENCY)
-            results = await asyncio.gather(*(download_resource_file(client, key, semaphore) for key in missing))
-            succeeded += sum(1 for result in results if result)
-    return total, missing_total, succeeded
 
 
 @on_core_start(priority=100)
 async def sync_resources_on_start() -> None:
-    """启动后后台同步资源；网络异常不阻断 Core。"""
+    """启动后同步资源；网络或 git 异常不阻断 Core。"""
     try:
-        total, missing, succeeded = await sync_missing_files()
-    except (httpx.HTTPError, json.JSONDecodeError, RuntimeError, OSError) as exc:
-        logger.warning(f"[卡拉彼丘·资源下载] 启动同步失败：{exc}")
+        success = await update_resources()
+    except OSError as exc:
+        logger.warning(f"{_RESOURCE_TAG} git 不可用：{exc}")
         return
-    logger.success("[卡拉彼丘·资源下载] 所有资源下载完毕")
+    if not success:
+        logger.warning(f"{_RESOURCE_TAG} 启动同步失败，将继续使用本地已有资源")

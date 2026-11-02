@@ -1,11 +1,9 @@
-"""插件数据仓库中的本地素材路径。"""
+"""资源仓库中的本地素材路径。"""
 
 import base64
 from pathlib import Path
 
-from ..utils.paths import DATA_DIR
-
-ASSET_DIR: Path = DATA_DIR / "assets"
+from ..utils.paths import ASSET_DIR
 
 _IMAGE_SUFFIXES = (".webp", ".png", ".jpg", ".jpeg", ".gif")
 
