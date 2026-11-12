@@ -13,6 +13,15 @@ from gsuid_core.pool import to_thread
 from gsuid_core.logger import logger
 
 BASE_URL = "https://www.dakanu.com"
+_DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+}
 _REFRESH_POLL_INTERVAL = 2.0
 _REFRESH_TIMEOUT = 300.0
 _CACHE_MAX_ENTRIES = 200
@@ -436,7 +445,9 @@ def _fetch_profile_sync(player_id: str, use_cache: bool = True) -> DakanuProfile
             return profile
     url = f"{BASE_URL}/api/summoner/{player_id}/cache"
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(client, "GET", url)
     except httpx.TimeoutException as exc:
         raise DakanuError("读取战绩缓存超时，请稍后再试。") from exc
@@ -476,7 +487,9 @@ def _search_players_sync(query: str) -> list[DakanuPlayerSuggestion]:
     if isinstance(cached, list):
         return cached
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(
                 client,
                 "GET",
@@ -525,7 +538,9 @@ def _is_match_detail_response(value: object) -> bool:
 def _fetch_match_detail_sync(player_id: str, room_id: str) -> DakanuMatchDetail | None:
     url = f"{BASE_URL}/api/match/{room_id}"
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(client, "GET", url, params={"player": player_id})
     except httpx.TimeoutException as exc:
         raise DakanuError("读取对局详情超时，请稍后再试。") from exc
@@ -566,7 +581,9 @@ def _is_refresh_response(value: object) -> bool:
 @to_thread
 def _start_refresh_sync(player_id: str) -> DakanuRefreshJob:
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(client, "POST", f"{BASE_URL}/api/summoner/{player_id}/refresh")
     except httpx.TimeoutException as exc:
         raise DakanuError("启动数据刷新超时，请稍后再试。") from exc
@@ -597,7 +614,9 @@ async def start_profile_refresh(player_id: str) -> DakanuRefreshJob:
 @to_thread
 def _fetch_refresh_status_sync(player_id: str) -> DakanuRefreshJob:
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(client, "GET", f"{BASE_URL}/api/summoner/{player_id}/refresh")
     except httpx.TimeoutException as exc:
         raise DakanuError("读取刷新状态超时，请稍后再试。") from exc
@@ -654,7 +673,9 @@ def _is_clan_search(value: object) -> bool:
 @to_thread
 def _fetch_clan_sync(clan_id: str) -> DakanuClan | None:
     try:
-        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=20.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(
                 client,
                 "GET",
@@ -701,7 +722,9 @@ def _is_leisure_response(value: object) -> bool:
 @to_thread
 def _fetch_leisure_sync(player_id: str) -> DakanuLeisure | None:
     try:
-        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=20.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+        ) as client:
             response = _request_with_retry(
                 client,
                 "GET",
