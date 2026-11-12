@@ -593,7 +593,7 @@ def _start_refresh_sync(player_id: str) -> DakanuRefreshJob:
         raise DakanuError("查询过于频繁，请稍后再试。")
     if response.status_code >= 500:
         raise DakanuError("战绩站暂时无法查询，请稍后再试。")
-    if response.status_code != 200:
+    if response.status_code not in (200, 202):
         logger.warning(f"[卡拉彼丘·刷新数据] 启动玩家 {player_id} 刷新返回 HTTP {response.status_code}")
         raise DakanuError("启动数据刷新失败，请稍后再试。")
     try:
