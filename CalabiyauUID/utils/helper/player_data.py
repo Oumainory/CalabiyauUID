@@ -1,6 +1,7 @@
 """玩家战绩快照的本地读写。"""
 
 import json
+import time
 from typing import TypedDict
 from pathlib import Path
 from dataclasses import dataclass
@@ -8,7 +9,13 @@ from dataclasses import dataclass
 from gsuid_core.pool import to_thread
 from gsuid_core.data_store import get_res_path
 
-from ..api.dakanu import DakanuClan, DakanuLeisure, DakanuProfile
+from ..api.dakanu import (
+    DakanuClan,
+    DakanuError,
+    DakanuLeisure,
+    DakanuProfile,
+    fetch_profile,
+)
 
 
 class DakanuSnapshotPayload(TypedDict):
@@ -107,3 +114,24 @@ def _read_snapshot_sync(player_id: str) -> PlayerSnapshot | None:
 
 async def load_player_snapshot(player_id: str) -> PlayerSnapshot | None:
     return await to_thread(_read_snapshot_sync)(player_id)
+
+
+async def load_or_fetch_player_snapshot(player_id: str) -> PlayerSnapshot | None:
+    """读取本地快照；缺失时只读 Dakanu cache 并保存，不触发重刷新。"""
+    snapshot = await load_player_snapshot(player_id)
+    if snapshot is not None:
+        return snapshot
+    try:
+        profile = await fetch_profile(player_id)
+    except DakanuError as exc:
+        if str(exc) == "没有找到这个玩家的战绩缓存。":
+            return None
+        raise
+    snapshot = PlayerSnapshot(
+        profile=profile,
+        leisure=None,
+        clan=None,
+        saved_at=int(time.time()),
+    )
+    await save_player_snapshot(snapshot)
+    return snapshot

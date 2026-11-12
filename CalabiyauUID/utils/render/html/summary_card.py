@@ -210,6 +210,56 @@ def _mode_block(mode: DakanuMode, index: int) -> str:
     )
 
 
+def _peer_rows(
+    values: object,
+    *,
+    count_key: str,
+    rate_key: str,
+) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    rows: list[str] = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        nickname = value.get("nickname")
+        games = value.get(count_key)
+        win_rate = value.get(rate_key)
+        if not isinstance(nickname, str):
+            continue
+        if isinstance(games, bool) or not isinstance(games, (int, float)):
+            continue
+        if isinstance(win_rate, bool) or not isinstance(win_rate, (int, float)):
+            continue
+        rows.append(
+            '<div class="peer-row">'
+            f'<div class="peer-name">{_escape(nickname)}</div>'
+            f'<div class="peer-meta"><span>{_num(games)} 场</span><span>胜率 {_pct(win_rate)}</span></div>'
+            "</div>"
+        )
+        if len(rows) == 5:
+            break
+    return rows
+
+
+def _peer_column(title: str, rows: list[str]) -> str:
+    content = "".join(rows) or '<div class="peer-empty">暂无数据</div>'
+    return f'<div class="peer-column"><div class="peer-column-title">{title}</div>{content}</div>'
+
+
+def _peer_block(profile: DakanuProfile) -> str:
+    team_ups = _peer_rows(profile.get("teamUps", []), count_key="teamedGames", rate_key="teamedWinRate")
+    rivals = _peer_rows(profile.get("rivals", []), count_key="games", rate_key="winRate")
+    if not team_ups and not rivals:
+        return ""
+    return (
+        '<div class="panel"><div class="panel-head"><span class="panel-title">常组队与常遇对手</span>'
+        '<span class="panel-note">最多展示 5 位</span></div><div class="peer-columns">'
+        f'{_peer_column("常组队队友", team_ups)}{_peer_column("常遇对手", rivals)}'
+        "</div></div>"
+    )
+
+
 def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     player = profile["player"]
     rank = profile["rank"]
@@ -272,6 +322,7 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     modes_html = (
         "".join(_mode_block(mode, index) for index, mode in enumerate(modes)) or '<div class="empty">暂无模式统计</div>'
     )
+    peers_html = _peer_block(profile)
     trend_html = _trend_block(profile)
 
     return f"""<!DOCTYPE html>
@@ -389,6 +440,13 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .mode-grid .stat:nth-child(3){{border-right:0}}
 .mode-grid .stat-label{{font-size:10px}}
 .mode-grid .stat-value{{font-size:14px}}
+.peer-columns{{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:11px 13px}}
+.peer-column{{min-width:0;padding:8px;border:1px solid #e7ebf1;border-radius:10px;background:#fbfcfe}}
+.peer-column-title{{margin-bottom:5px;color:#657186;font-size:11px;font-weight:700}}
+.peer-row{{padding:6px 0;border-top:1px solid #edf0f5}}
+.peer-name{{overflow:hidden;color:#344156;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}}
+.peer-meta{{display:flex;justify-content:space-between;gap:4px;margin-top:3px;color:#8994a6;font-size:10px;white-space:nowrap}}
+.peer-empty{{padding:12px 0;color:#98a2b2;text-align:center;font-size:11px}}
 .empty{{padding:22px 17px;color:#98a2b2;text-align:center;font-size:13px}}
 .footer{{text-align:center;padding:8px 2px 6px;color:#929cac;font-size:11px}}
 </style></head>
@@ -474,6 +532,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
     <div class="lower">
       <div class="panel"><div class="panel-head"><span class="panel-title">角色使用</span><span class="panel-note">按场次</span></div><div class="role-list">{roles_html}</div></div>
       <div class="panel"><div class="panel-head"><span class="panel-title">模式统计</span><span class="panel-note">当前赛季</span></div>{modes_html}</div>
+      {peers_html}
     </div>
   </div>
 </div>

@@ -17,7 +17,7 @@ from ..utils.helper.assets import (
 )
 from ..utils.helper.refresh import refresh_player_data
 from ..utils.helper.player_data import PlayerSnapshot, load_player_snapshot
-from ..utils.database.model_bind import get_main_uid
+from ..utils.helper.resolve_player import resolve_player_query
 from ..utils.render.html.summary_card import (
     SummaryAssets,
     tier_index,
@@ -27,22 +27,8 @@ from ..utils.render.html.summary_card import (
 
 
 async def resolve_player_id(ev: Event) -> tuple[str, str | None]:
-    """按 UID、@ 用户、当前账号的顺序解析查询目标。"""
-    raw_text = ev.text.strip()
-    if raw_text:
-        if not raw_text.isdigit():
-            return "", "请在命令后附带卡拉彼丘 UID。\n例如：kq战绩总览 1234567"
-        return raw_text, None
-
-    at_target = ev.at.strip() if ev.at is not None else ""
-    is_self_at = at_target in {ev.bot_id, ev.real_bot_id, ev.bot_self_id}
-    target_user = ev.user_id if not at_target or is_self_at else at_target
-    player_id = await get_main_uid(ev.bot_id, target_user)
-    if player_id is not None:
-        return player_id, None
-    if target_user == ev.user_id:
-        return "", "尚未绑定卡拉彼丘账号。\n发送 kq绑定 <UID> 进行绑定。"
-    return "", "对方尚未绑定卡拉彼丘账号。"
+    """按 UID、昵称、@ 用户、当前账号的顺序解析查询目标。"""
+    return await resolve_player_query(ev, allow_at=True)
 
 
 async def ensure_player_snapshot(player_id: str, *, refresh: bool = False) -> PlayerSnapshot:

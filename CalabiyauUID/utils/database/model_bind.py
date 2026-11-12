@@ -97,6 +97,50 @@ class CalabiyauBind(BaseBotIDModel, table=True):
 
     @classmethod
     @with_session
+    async def switch_bind(
+        cls: type[T_CalabiyauBind],
+        session: AsyncSession,
+        bot_id: str,
+        user_id: str,
+        game_uid: str | None = None,
+    ) -> tuple[str, str | None]:
+        """切换到指定绑定，或按 ID 升序切换到下一个绑定。"""
+        result = await session.execute(
+            select(cls)
+            .where(
+                col(cls.bot_id) == bot_id,
+                col(cls.user_id) == user_id,
+            )
+            .order_by(col(cls.id).asc())
+        )
+        binds = list(result.scalars().all())
+        if not binds:
+            return "empty", None
+
+        current = next((bind for bind in binds if bind.is_main), binds[0])
+        if game_uid is not None:
+            target = next((bind for bind in binds if bind.game_uid == game_uid), None)
+            if target is None:
+                return "not_found", current.game_uid
+        else:
+            if len(binds) == 1:
+                return "only_one", current.game_uid
+            current_index = next(index for index, bind in enumerate(binds) if bind.id == current.id)
+            target = binds[(current_index + 1) % len(binds)]
+
+        await session.execute(
+            update(cls)
+            .where(
+                col(cls.bot_id) == bot_id,
+                col(cls.user_id) == user_id,
+            )
+            .values(is_main=False)
+        )
+        await session.execute(update(cls).where(col(cls.id) == target.id).values(is_main=True))
+        return "switched", target.game_uid
+
+    @classmethod
+    @with_session
     async def delete_bind(
         cls: type[T_CalabiyauBind],
         session: AsyncSession,

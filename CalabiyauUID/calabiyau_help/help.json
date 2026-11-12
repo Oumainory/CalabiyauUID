@@ -1,0 +1,81 @@
+{
+  "账号管理": {
+    "desc": "绑定和切换卡拉彼丘账号",
+    "data": [
+      {
+        "name": "绑定",
+        "desc": "绑定卡拉彼丘账号，支持 UID 或昵称",
+        "eg": "kq绑定 1234567 / kq绑定 玩家昵称",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "解绑",
+        "desc": "按 UID 解绑账号",
+        "eg": "kq解绑 1234567",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "查看",
+        "desc": "查看当前已绑定的账号及当前账号标记",
+        "eg": "kq查看",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "切换",
+        "desc": "带 UID 切换到指定已绑定账号；不带参数则切换到下一个账号",
+        "eg": "kq切换 1234567 / kq切换",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "战绩查询": {
+    "desc": "查看卡拉彼丘账号战绩卡片",
+    "data": [
+      {
+        "name": "战绩总览",
+        "desc": "查看当前绑定账号或 @ 用户的总览；指定 UID 或昵称查询时支持读取 Dakanu 已有缓存",
+        "eg": "kq战绩总览 / kq战绩总览 1234567 / kq战绩总览 玩家昵称",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "历史战绩",
+        "desc": "查看当前绑定账号最近 8 场；可指定 UID 或昵称",
+        "eg": "kq历史战绩 / kq历史战绩 玩家昵称",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "刷新数据",
+        "desc": "强制刷新当前绑定账号，或指定 UID / 昵称拉取最新战绩",
+        "eg": "kq刷新数据 / kq刷新数据 1234567 / kq刷新数据 玩家昵称",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "其他": {
+    "desc": "查看本帮助",
+    "data": [
+      {
+        "name": "帮助",
+        "desc": "显示 CalabiyauUID 命令帮助",
+        "eg": "kq帮助",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  }
+}

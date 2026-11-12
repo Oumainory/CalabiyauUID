@@ -10,8 +10,12 @@ from ..utils.api.dakanu import DakanuError, role_image_url
 from ..utils.downloader import resolve_image
 from ..utils.helper.maps import MapInfo, resolve_map
 from ..utils.helper.assets import image_data_uri, local_role_image, local_avatar_image, local_map_slug_image
-from ..utils.helper.player_data import PlayerSnapshot, load_player_snapshot
-from ..utils.database.model_bind import get_main_uid
+from ..utils.helper.player_data import (
+    PlayerSnapshot,
+    load_or_fetch_player_snapshot,
+    load_player_snapshot,
+)
+from ..utils.helper.resolve_player import resolve_player_query
 from ..utils.helper.recent_matches import MatchView, load_recent_match_views
 from ..utils.render.html.matches_card import MatchCardAssets, render_matches_card
 
@@ -19,15 +23,22 @@ _RECENT_LIMIT = 8
 
 
 async def resolve_match_player_id(ev: Event) -> tuple[str, str | None]:
-    """历史战绩只查询当前账号。"""
-    player_id = await get_main_uid(ev.bot_id, ev.user_id)
-    if player_id is None:
-        return "", "尚未绑定卡拉彼丘账号。\n发送 kq绑定 <UID> 进行绑定。"
-    return player_id, None
+    """按 UID、昵称或当前绑定账号解析历史战绩目标。"""
+    return await resolve_player_query(ev)
 
 
-async def _load_recent_matches_data(player_id: str) -> tuple[PlayerSnapshot, list[MatchView]]:
-    snapshot = await load_player_snapshot(player_id)
+async def load_matches_snapshot(player_id: str, *, allow_cache_fetch: bool) -> PlayerSnapshot | None:
+    if allow_cache_fetch:
+        return await load_or_fetch_player_snapshot(player_id)
+    return await load_player_snapshot(player_id)
+
+
+async def _load_recent_matches_data(
+    player_id: str,
+    snapshot: PlayerSnapshot | None = None,
+) -> tuple[PlayerSnapshot, list[MatchView]]:
+    if snapshot is None:
+        snapshot = await load_player_snapshot(player_id)
     if snapshot is None:
         raise DakanuError("本地还没有这个玩家的战绩。\n发送 kq刷新数据 拉取后再查看。")
     matches = snapshot.profile["matches"]
@@ -117,7 +128,7 @@ async def _build_assets(snapshot: PlayerSnapshot, views: list[MatchView]) -> Mat
     )
 
 
-async def build_recent_matches_card(player_id: str) -> bytes:
-    snapshot, views = await _load_recent_matches_data(player_id)
+async def build_recent_matches_card(player_id: str, snapshot: PlayerSnapshot | None = None) -> bytes:
+    snapshot, views = await _load_recent_matches_data(player_id, snapshot)
     assets = await _build_assets(snapshot, views)
     return await render_matches_card(snapshot.profile, views, assets)

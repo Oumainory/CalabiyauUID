@@ -8,19 +8,11 @@ from gsuid_core.segment import MessageSegment
 
 from ..utils.api.dakanu import DakanuError
 from ..utils.helper.refresh import refresh_player_data
-from ..utils.database.model_bind import get_main_uid
+from ..utils.helper.resolve_player import resolve_player_query
 
 
 async def resolve_refresh_uid(ev: Event) -> tuple[str, str | None]:
-    raw_text = ev.text.strip()
-    if raw_text:
-        if not raw_text.isdigit():
-            return "", "请在命令后附带卡拉彼丘 UID。\n例如：kq刷新数据 1234567"
-        return raw_text, None
-    player_id = await get_main_uid(ev.bot_id, ev.user_id)
-    if player_id is None:
-        return "", "尚未绑定卡拉彼丘账号。\n发送 kq绑定 <UID> 进行绑定。"
-    return player_id, None
+    return await resolve_player_query(ev)
 
 
 async def refresh_and_report(bot: Bot, ev: Event, player_id: str) -> None:

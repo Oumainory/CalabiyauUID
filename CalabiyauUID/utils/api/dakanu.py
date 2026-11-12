@@ -1,7 +1,11 @@
 """Dakanu 公开读取接口。"""
 
 import asyncio
-from typing import TypedDict
+from collections import OrderedDict
+from copy import deepcopy
+from threading import Lock
+import time
+from typing import NotRequired, TypedDict, TypeGuard
 
 import httpx
 
@@ -11,6 +15,12 @@ from gsuid_core.logger import logger
 BASE_URL = "https://www.dakanu.com"
 _REFRESH_POLL_INTERVAL = 2.0
 _REFRESH_TIMEOUT = 300.0
+_CACHE_MAX_ENTRIES = 200
+_SEARCH_CACHE_TTL = 600.0
+_PROFILE_CACHE_TTL = 90.0
+
+_response_cache: OrderedDict[tuple[str, str], tuple[float, object]] = OrderedDict()
+_response_cache_lock = Lock()
 
 
 class DakanuPlayer(TypedDict):
@@ -25,6 +35,13 @@ class DakanuPlayer(TypedDict):
     borderId: int
     privacyStatus: str
     accountVerified: bool
+
+
+class DakanuPlayerSuggestion(TypedDict):
+    playerId: str
+    nickname: str
+    exact: NotRequired[bool]
+    level: NotRequired[int]
 
 
 class DakanuPresence(TypedDict):
@@ -245,6 +262,10 @@ class DakanuProfileResponse(TypedDict):
     profile: DakanuProfile
 
 
+class DakanuSearchResponse(TypedDict):
+    suggestions: list[DakanuPlayerSuggestion]
+
+
 class DakanuClanIcon(TypedDict):
     bgId: int
     bgColor: int
@@ -323,6 +344,79 @@ class DakanuError(Exception):
     """Dakanu 请求失败，message 可直接向用户说明原因。"""
 
 
+def _cache_get(key: tuple[str, str]) -> object | None:
+    now = time.monotonic()
+    with _response_cache_lock:
+        entry = _response_cache.get(key)
+        if entry is None:
+            return None
+        expires_at, value = entry
+        if expires_at <= now:
+            del _response_cache[key]
+            return None
+        _response_cache.move_to_end(key)
+        return deepcopy(value)
+
+
+def _cache_set(key: tuple[str, str], value: object, ttl: float) -> None:
+    now = time.monotonic()
+    with _response_cache_lock:
+        expired = [cache_key for cache_key, (expires_at, _) in _response_cache.items() if expires_at <= now]
+        for cache_key in expired:
+            _response_cache.pop(cache_key, None)
+        _response_cache[key] = (now + ttl, deepcopy(value))
+        _response_cache.move_to_end(key)
+        while len(_response_cache) > _CACHE_MAX_ENTRIES:
+            _response_cache.popitem(last=False)
+
+
+def _request_with_retry(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    **kwargs: object,
+) -> httpx.Response:
+    """对超时和 5xx 最多重试一次，其他状态码原样交给调用方处理。"""
+    for attempt in range(2):
+        try:
+            response = client.request(method, url, **kwargs)
+        except httpx.TimeoutException:
+            if attempt == 1:
+                raise
+            continue
+        if response.status_code >= 500 and attempt == 0:
+            continue
+        return response
+    raise RuntimeError("unreachable retry state")
+
+
+def _is_search_response(value: object) -> TypeGuard[DakanuSearchResponse]:
+    return isinstance(value, dict) and isinstance(value.get("suggestions"), list)
+
+
+def _normalize_suggestions(values: list[object]) -> list[DakanuPlayerSuggestion]:
+    suggestions: list[DakanuPlayerSuggestion] = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        raw_player_id = value.get("playerId")
+        if isinstance(raw_player_id, bool) or not isinstance(raw_player_id, (str, int)):
+            continue
+        player_id = str(raw_player_id)
+        nickname = value.get("nickname")
+        if not player_id.isdigit() or not isinstance(nickname, str) or not nickname.strip():
+            continue
+        suggestion: DakanuPlayerSuggestion = {"playerId": player_id, "nickname": nickname}
+        exact = value.get("exact")
+        level = value.get("level")
+        if isinstance(exact, bool):
+            suggestion["exact"] = exact
+        if isinstance(level, int) and not isinstance(level, bool):
+            suggestion["level"] = level
+        suggestions.append(suggestion)
+    return suggestions
+
+
 def _is_profile_response(value: object) -> bool:
     if not isinstance(value, dict):
         return False
@@ -332,18 +426,27 @@ def _is_profile_response(value: object) -> bool:
 
 
 @to_thread
-def _fetch_profile_sync(player_id: str) -> DakanuProfile:
+def _fetch_profile_sync(player_id: str, use_cache: bool = True) -> DakanuProfile:
     """读取玩家缓存档案；不在查询链路里触发上游刷新。"""
+    cache_key = ("profile", player_id)
+    if use_cache:
+        cached = _cache_get(cache_key)
+        if isinstance(cached, dict):
+            profile: DakanuProfile = cached
+            return profile
     url = f"{BASE_URL}/api/summoner/{player_id}/cache"
-    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-        response = client.get(url)
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = _request_with_retry(client, "GET", url)
+    except httpx.TimeoutException as exc:
+        raise DakanuError("读取战绩缓存超时，请稍后再试。") from exc
     if response.status_code == 204:
         raise DakanuError("没有找到这个玩家的战绩缓存。")
     if response.status_code == 404:
         raise DakanuError("没有找到这个玩家的战绩缓存。")
     if response.status_code == 429:
         raise DakanuError("查询过于频繁，请稍后再试。")
-    if response.status_code in {502, 503, 504}:
+    if response.status_code >= 500:
         raise DakanuError("战绩站暂时无法读取数据，请稍后再试。")
     if response.status_code != 200:
         logger.warning(f"[卡拉彼丘·战绩总览] 读取玩家 {player_id} 返回 HTTP {response.status_code}")
@@ -356,12 +459,54 @@ def _fetch_profile_sync(player_id: str) -> DakanuProfile:
     if not _is_profile_response(payload):
         logger.warning(f"[卡拉彼丘·战绩总览] 玩家 {player_id} 响应结构异常")
         raise DakanuError("战绩数据格式异常，请稍后再试。")
-    return payload["profile"]
+    profile = payload["profile"]
+    _cache_set(cache_key, profile, _PROFILE_CACHE_TTL)
+    return profile
 
 
-async def fetch_profile(player_id: str) -> DakanuProfile:
+async def fetch_profile(player_id: str, *, use_cache: bool = True) -> DakanuProfile:
     """在线程池读取玩家缓存档案，避免阻塞事件循环。"""
-    return await _fetch_profile_sync(player_id)
+    return await _fetch_profile_sync(player_id, use_cache)
+
+
+@to_thread
+def _search_players_sync(query: str) -> list[DakanuPlayerSuggestion]:
+    cache_key = ("search", query.casefold())
+    cached = _cache_get(cache_key)
+    if isinstance(cached, list):
+        return cached
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = _request_with_retry(
+                client,
+                "GET",
+                f"{BASE_URL}/api/search/players",
+                params={"q": query},
+            )
+    except httpx.TimeoutException as exc:
+        raise DakanuError("玩家搜索超时，请稍后再试。") from exc
+    if response.status_code == 429:
+        raise DakanuError("查询过于频繁，请稍后再试。")
+    if response.status_code >= 500:
+        raise DakanuError("战绩站暂时无法搜索玩家，请稍后再试。")
+    if response.status_code != 200:
+        logger.warning(f"[卡拉彼丘·玩家搜索] 搜索返回 HTTP {response.status_code}")
+        raise DakanuError("搜索玩家失败，请稍后再试。")
+    try:
+        payload: object = response.json()
+    except ValueError:
+        raise DakanuError("玩家搜索数据格式异常，请稍后再试。") from None
+    if not _is_search_response(payload):
+        raise DakanuError("玩家搜索数据格式异常，请稍后再试。")
+    suggestions = _normalize_suggestions(payload["suggestions"])
+    if suggestions:
+        _cache_set(cache_key, suggestions, _SEARCH_CACHE_TTL)
+    return suggestions
+
+
+async def search_players(query: str) -> list[DakanuPlayerSuggestion]:
+    """按昵称搜索玩家；仅缓存结构有效的成功响应。"""
+    return await _search_players_sync(query)
 
 
 def _is_match_detail_response(value: object) -> bool:
@@ -379,13 +524,16 @@ def _is_match_detail_response(value: object) -> bool:
 @to_thread
 def _fetch_match_detail_sync(player_id: str, room_id: str) -> DakanuMatchDetail | None:
     url = f"{BASE_URL}/api/match/{room_id}"
-    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-        response = client.get(url, params={"player": player_id})
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = _request_with_retry(client, "GET", url, params={"player": player_id})
+    except httpx.TimeoutException as exc:
+        raise DakanuError("读取对局详情超时，请稍后再试。") from exc
     if response.status_code == 404:
         return None
     if response.status_code == 429:
         raise DakanuError("对局详情查询过于频繁，请稍后再试。")
-    if response.status_code in {502, 503, 504}:
+    if response.status_code >= 500:
         raise DakanuError("战绩站暂时无法读取对局详情，请稍后再试。")
     if response.status_code != 200:
         logger.warning(f"[卡拉彼丘·最近对局] 读取对局 {room_id} 返回 HTTP {response.status_code}")
@@ -417,13 +565,16 @@ def _is_refresh_response(value: object) -> bool:
 
 @to_thread
 def _start_refresh_sync(player_id: str) -> DakanuRefreshJob:
-    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-        response = client.post(f"{BASE_URL}/api/summoner/{player_id}/refresh")
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = _request_with_retry(client, "POST", f"{BASE_URL}/api/summoner/{player_id}/refresh")
+    except httpx.TimeoutException as exc:
+        raise DakanuError("启动数据刷新超时，请稍后再试。") from exc
     if response.status_code == 404:
         raise DakanuError("没有找到该玩家的战绩数据。")
     if response.status_code == 429:
         raise DakanuError("查询过于频繁，请稍后再试。")
-    if response.status_code in {502, 503, 504}:
+    if response.status_code >= 500:
         raise DakanuError("战绩站暂时无法查询，请稍后再试。")
     if response.status_code != 200:
         logger.warning(f"[卡拉彼丘·刷新数据] 启动玩家 {player_id} 刷新返回 HTTP {response.status_code}")
@@ -445,8 +596,11 @@ async def start_profile_refresh(player_id: str) -> DakanuRefreshJob:
 
 @to_thread
 def _fetch_refresh_status_sync(player_id: str) -> DakanuRefreshJob:
-    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-        response = client.get(f"{BASE_URL}/api/summoner/{player_id}/refresh")
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = _request_with_retry(client, "GET", f"{BASE_URL}/api/summoner/{player_id}/refresh")
+    except httpx.TimeoutException as exc:
+        raise DakanuError("读取刷新状态超时，请稍后再试。") from exc
     if response.status_code != 200:
         logger.warning(f"[卡拉彼丘·刷新数据] 读取玩家 {player_id} 刷新状态返回 HTTP {response.status_code}")
         raise DakanuError("读取刷新状态失败，请稍后再试。")
@@ -481,7 +635,7 @@ async def refresh_profile(player_id: str) -> DakanuProfile:
 
     for _ in range(5):
         try:
-            return await fetch_profile(player_id)
+            return await fetch_profile(player_id, use_cache=False)
         except DakanuError as exc:
             if str(exc) != "没有找到这个玩家的战绩缓存。":
                 raise
@@ -499,8 +653,17 @@ def _is_clan_search(value: object) -> bool:
 
 @to_thread
 def _fetch_clan_sync(clan_id: str) -> DakanuClan | None:
-    with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-        response = client.get(f"{BASE_URL}/api/clans/search", params={"clan_id": clan_id, "limit": 1})
+    try:
+        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+            response = _request_with_retry(
+                client,
+                "GET",
+                f"{BASE_URL}/api/clans/search",
+                params={"clan_id": clan_id, "limit": 1},
+            )
+    except httpx.TimeoutException:
+        logger.warning(f"[卡拉彼丘·战绩总览] 读取战队 {clan_id} 超时")
+        return None
     if response.status_code != 200:
         logger.warning(f"[卡拉彼丘·战绩总览] 读取战队 {clan_id} 返回 HTTP {response.status_code}")
         return None
@@ -537,8 +700,17 @@ def _is_leisure_response(value: object) -> bool:
 
 @to_thread
 def _fetch_leisure_sync(player_id: str) -> DakanuLeisure | None:
-    with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-        response = client.get(f"{BASE_URL}/api/summoner/{player_id}/leisure", params={"season_id": 0})
+    try:
+        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+            response = _request_with_retry(
+                client,
+                "GET",
+                f"{BASE_URL}/api/summoner/{player_id}/leisure",
+                params={"season_id": 0},
+            )
+    except httpx.TimeoutException:
+        logger.warning(f"[卡拉彼丘·战绩总览] 读取玩家 {player_id} 挑战赛数据超时")
+        return None
     if response.status_code == 204:
         return None
     if response.status_code != 200:
