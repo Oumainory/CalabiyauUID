@@ -384,11 +384,11 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .stat-label{{display:block;color:#8490a2;font-size:11px;margin-bottom:3px;white-space:nowrap}}
 .stat-value{{display:block;font-size:16px;font-weight:650;color:#273348;white-space:nowrap}}
 .trend-wrap{{display:flex;align-items:center;gap:12px;padding:8px 14px 12px}}
-.trend-chart{{width:330px;flex:none}}
-.trend-svg{{display:block;width:330px;height:138px}}
+.trend-chart{{width:248px;flex:none;min-width:0}}
+.trend-svg{{display:block;width:248px;height:103px}}
 .trend-side{{flex:1;min-width:0}}
-.trend-kicker{{display:block;color:#8792a4;font-size:11px;margin-bottom:5px;white-space:nowrap}}
-.trend-tier{{font-size:18px;font-weight:700;line-height:1.2;white-space:nowrap}}
+.trend-kicker{{display:block;color:#8792a4;font-size:11px;margin-bottom:5px}}
+.trend-tier{{font-size:16px;font-weight:700;line-height:1.25}}
 .trend-score{{margin-top:5px;color:#596579;font-size:13px;white-space:nowrap}}
 .trend-net{{margin-top:8px;font-size:26px;font-weight:700;line-height:1}}
 .trend-net.is-up{{color:#ef5d5d}}
