@@ -144,11 +144,13 @@ def render_empty_summary_html(message: str) -> str:
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
-.empty-card{{width:100%;padding:42px 32px;background:linear-gradient(135deg,#f8fafc 0%,#e8edf4 100%);text-align:center}}
+.empty-card{{width:100%;padding:38px 32px 16px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef4 100%);text-align:center}}
 .empty-title{{font-size:22px;font-weight:700;color:#263247}}
 .empty-text{{margin-top:12px;font-size:15px;line-height:1.6;color:#7c8799;white-space:pre-wrap}}
+.empty-footer{{padding-top:28px;color:#78869a;font-size:10px}}
 </style></head>
-<body><div class="empty-card"><div class="empty-title">还没有战绩数据</div><div class="empty-text">{_escape(message)}</div></div></body></html>"""
+<body><div class="empty-card"><div class="empty-title">还没有战绩数据</div><div class="empty-text">{_escape(message)}</div>
+<div class="empty-footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div></div></body></html>"""
 
 
 async def render_empty_summary_card(message: str) -> bytes:
@@ -295,16 +297,16 @@ def _medals_html(assets: SummaryAssets) -> str:
         return ""
     items: list[str] = []
     for index, medal in enumerate(assets.medals):
-        medal_id = medal.get("id", "")
         name = medal.get("name")
-        label = name.strip() if isinstance(name, str) and name.strip() else f"勋章 {medal_id}"
+        label = name.strip() if isinstance(name, str) and name.strip() else "勋章"
         level = medal.get("level")
         level_text = f"Lv.{level}" if isinstance(level, int) and not isinstance(level, bool) else ""
+        display_label = f"{label} {level_text}".strip()
         image = assets.medal_images[index] if index < len(assets.medal_images) else ""
         image_html = f'<img src="{_escape(image)}" alt="">' if image else '<span class="medal-fallback">章</span>'
         items.append(
-            f'<div class="medal-item" title="{_escape(label)}">{image_html}'
-            f'<span>{_escape(label)} {level_text}</span></div>'
+            f'<div class="medal-item" title="{_escape(display_label)}">{image_html}'
+            f'<span>{_escape(display_label)}</span></div>'
         )
     return (
         '<div class="medals"><div class="medals-title">勋章</div>'
@@ -390,7 +392,7 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     )
     peers_html = "" if assets.season_label else _peer_block(profile)
     trend_html = (
-        '<div class="trend-empty">赛季接口暂未提供逐场排位分趋势</div>'
+        '<div class="trend-empty">本赛季暂无排位分趋势</div>'
         if assets.season_label
         else _trend_block(profile)
     )

@@ -1,6 +1,7 @@
 """战队搜索、成员读取与卡片编排。"""
 
 from ..utils.api.dakanu import DakanuError, search_clans, fetch_clan_members
+from ..utils.helper.player_images import load_avatar_images
 from ..utils.helper.resolve_player import region_label, parse_region_keyword
 from ..utils.render.html.clan_card import render_clan_card
 
@@ -8,6 +9,24 @@ from ..utils.render.html.clan_card import render_clan_card
 def _clans(payload: dict[str, object]) -> list[dict[str, object]]:
     values = payload.get("clans")
     return [value for value in values if isinstance(value, dict)] if isinstance(values, list) else []
+
+
+def _member_avatar_ids(payload: dict[str, object] | None) -> set[int]:
+    if payload is None:
+        return set()
+    members = payload.get("members")
+    if not isinstance(members, list):
+        data = payload.get("data")
+        members = data.get("members") if isinstance(data, dict) else []
+    if not isinstance(members, list):
+        return set()
+    return {
+        member["avatarId"]
+        for member in members[:32]
+        if isinstance(member, dict)
+        and isinstance(member.get("avatarId"), int)
+        and not isinstance(member.get("avatarId"), bool)
+    }
 
 
 def _ambiguous_message(query: str, clans: list[dict[str, object]]) -> str:
@@ -52,4 +71,10 @@ async def build_clan_card(raw_text: str) -> bytes:
     clan = matches[0]
     clan_id = clan.get("clanId") or clan.get("id")
     members = await fetch_clan_members(str(clan_id), region=region) if clan_id else None
-    return await render_clan_card(clan, members, region=region_label(region))
+    avatar_images = await load_avatar_images(_member_avatar_ids(members))
+    return await render_clan_card(
+        clan,
+        members,
+        region=region_label(region),
+        avatar_images=avatar_images,
+    )

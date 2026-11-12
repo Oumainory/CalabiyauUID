@@ -1,8 +1,11 @@
 """排行榜参数解析与卡片编排。"""
 
 import re
+import asyncio
 
 from ..utils.api.dakanu import DakanuError, fetch_rankings, fetch_ranking_types, fetch_ranking_seasons
+from ..utils.helper.role_images import load_role_images
+from ..utils.helper.player_images import load_avatar_images
 from ..utils.helper.resolve_player import region_label, parse_region_keyword
 from ..utils.render.html.rankings_card import render_rankings_card
 
@@ -13,6 +16,27 @@ RANK_TYPES = {
     "挑战榜": 7,
     "晶源感染榜": 8,
 }
+
+
+def _asset_ids(payload: dict[str, object]) -> tuple[set[int], set[int]]:
+    avatars: set[int] = set()
+    roles: set[int] = set()
+    entries = payload.get("entries")
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        avatar_id = entry.get("avatarId")
+        if isinstance(avatar_id, int) and not isinstance(avatar_id, bool):
+            avatars.add(avatar_id)
+        role_values = entry.get("roles")
+        for role in role_values if isinstance(role_values, list) else []:
+            role_id = role.get("roleId") if isinstance(role, dict) else role
+            if isinstance(role_id, int) and not isinstance(role_id, bool):
+                roles.add(role_id)
+        role_id = entry.get("roleId")
+        if isinstance(role_id, int) and not isinstance(role_id, bool):
+            roles.add(role_id)
+    return avatars, roles
 
 
 def _remove_season_tag(raw_text: str) -> tuple[str, str | None]:
@@ -83,9 +107,17 @@ async def build_rankings_card(raw_text: str, *, forced_type: int | None = None) 
         season_id=season_id,
         region=region,
     )
+    avatar_ids, role_ids = _asset_ids(payload)
+    avatar_images, role_images = await asyncio.gather(
+        load_avatar_images(avatar_ids),
+        load_role_images(role_ids),
+    )
     return await render_rankings_card(
         payload,
         title=type_label,
         season=season_label,
         region=region_label(region),
+        ranking_type=selected_type,
+        avatar_images=avatar_images,
+        role_images=role_images,
     )

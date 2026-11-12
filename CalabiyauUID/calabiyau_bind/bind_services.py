@@ -1,8 +1,8 @@
 """卡拉彼丘账号绑定、解绑与查看。"""
 
 from ..utils.helper.refresh import refresh_player_data
-from ..utils.database.model_bind import CalabiyauBind
 from ..utils.helper.player_data import load_player_snapshot
+from ..utils.database.model_bind import CalabiyauBind
 
 
 async def bind_account(

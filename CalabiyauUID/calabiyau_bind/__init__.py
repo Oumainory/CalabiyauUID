@@ -7,7 +7,7 @@ from gsuid_core.bot import Bot
 from gsuid_core.models import Event
 from gsuid_core.segment import MessageSegment
 
-from .bind_services import bind_account, switch_account, view_accounts, unbind_account
+from .bind_services import bind_account, view_accounts, switch_account, unbind_account
 from ..utils.api.dakanu import DakanuError
 from ..utils.helper.refresh import track_background
 from ..utils.helper.resolve_player import resolve_player_argument
