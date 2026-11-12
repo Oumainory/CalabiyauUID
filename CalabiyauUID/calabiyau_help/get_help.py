@@ -12,7 +12,7 @@ from ..version import CalabiyauUID_version
 
 ICON = Path(__file__).parent.parent.parent / "ICON.png"
 HELP_DATA = Path(__file__).parent / "help.json"
-ICON_PATH = Path(__file__).parent
+ICON_PATH = Path(__file__).parent / "icon_path"
 TEXT_PATH = Path(__file__).parent / "texture2d"
 
 
