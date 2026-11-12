@@ -354,11 +354,13 @@ def render_match_detail_html(
 .score-opponent{{color:#c66e72}}
 .score i{{color:#8390a2;font-size:19px;font-style:normal;font-weight:500}}
 .score-missing{{color:#536176;font-size:17px;font-weight:700}}
-.hero-bottom{{justify-content:flex-start;flex-wrap:wrap;margin-top:10px;color:#68758a;font-size:10.5px}}
+.hero-bottom{{justify-content:space-between;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:#68758a;font-size:10.5px}}
+.hero-meta,.hero-ids{{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}}
+.hero-ids{{margin-left:auto}}
 .outcome{{padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.75);font-size:10px;font-weight:700}}
 .outcome-win{{color:#2563eb}}.outcome-lose{{color:#c62828}}.outcome-draw{{color:#946200}}.outcome-unknown{{color:#6f7c8f}}
-.hero-viewer{{margin-left:auto;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.room{{max-width:150px;overflow:hidden;color:#8490a1;font:10px "Mono",Consolas,monospace;text-overflow:ellipsis;white-space:nowrap}}
+.hero-viewer{{color:#68758a;white-space:nowrap}}
+.room{{color:#8490a1;font:10px "Mono",Consolas,monospace;white-space:nowrap}}
 .teams{{display:flex;align-items:stretch;gap:12px;margin-top:12px}}
 .team{{display:flex;flex:1;min-width:0;flex-direction:column;overflow:hidden;border:1px solid #dce3ec;border-left:4px solid var(--team-accent);border-radius:12px;box-shadow:0 5px 16px rgba(22,26,33,.05)}}
 .team-own{{--team-accent:#4b8ef0;--team-tint:rgba(75,142,240,.12);background:linear-gradient(145deg,#f5f9ff 0%,#edf3fc 100%)}}
@@ -399,8 +401,8 @@ def render_match_detail_html(
 <section class="hero hero-{result_tone}">{map_art}<div class="hero-veil"></div><div class="hero-content">
 <div class="hero-top"><span class="mode">{_escape(mode)}</span><span class="region">{_escape(region)}</span></div>
 <div class="hero-main"><div class="map">{_escape(map_name)}</div><div class="score">{score_html}</div></div>
-<div class="hero-bottom"><span class="outcome outcome-{result_tone}">{_escape(result_label)}</span>
-<span>{_escape(played_at)}</span><span>时长 {_escape(duration)}</span>{viewer_html}<span class="room">对局编号 {_escape(room_id)}</span></div>
+<div class="hero-bottom"><div class="hero-meta"><span class="outcome outcome-{result_tone}">{_escape(result_label)}</span>
+<span>{_escape(played_at)}</span><span>时长 {_escape(duration)}</span></div><div class="hero-ids">{viewer_html}<span class="room">对局编号 {_escape(room_id)}</span></div></div>
 </div></section>
 <div class="teams">{team_html}</div><div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
