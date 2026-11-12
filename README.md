@@ -20,7 +20,7 @@
 
 ## 丨关于本仓库
 
-本仓库是 [sssysy/CalabiyauUID](https://github.com/sssysy/CalabiyauUID) 的修改版，基于原作者的 `b6eb773` 版本继续补全功能，并沿用 GPL-3.0 许可证。插件的原始设计与代码版权归原作者 [sssysy](https://github.com/sssysy) 所有。
+本仓库是 [sssysy/CalabiyauUID](https://github.com/sssysy/CalabiyauUID) 的修改版，基于原作者的 `b6eb773` 版本继续补全功能，并沿用 GPL-3.0 许可证。
 
 主要改动：
 
@@ -42,9 +42,6 @@
 > **注意：该插件为 [早柚核心(gsuid_core)](https://github.com/Genshin-bots/gsuid_core) 的扩展，具体安装方式可参考上方安装文档**
 >
 > 🚧 项目快速迭代中，有漏洞可提issue或pr 🚧
-
-> [!CAUTION]
-> 项目还在早期开发阶段，部分功能可能报错或不可用！如遇到请等待后续更新
 
 ## 丨命令列表
 
