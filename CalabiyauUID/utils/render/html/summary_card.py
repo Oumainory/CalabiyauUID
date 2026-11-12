@@ -335,11 +335,12 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .card{{width:100%;padding:24px 24px 0;background:linear-gradient(135deg,#f8fafc 0%,#e8edf4 55%,#dfe7f2 100%)}}
 .top{{display:flex;gap:18px;align-items:flex-start}}
 .identity{{width:252px;flex:none;align-self:flex-start;display:flex;flex-direction:column;background:#fff;border:1px solid #dce3ec;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(39,55,80,.08)}}
-.identity-main{{display:flex;gap:14px;align-items:center;padding:18px 16px;border-bottom:1px solid #e4e9f0}}
+.identity-main{{display:flex;flex-direction:column;align-items:stretch;gap:12px;padding:16px;border-bottom:1px solid #e4e9f0}}
+.identity-row{{display:flex;gap:14px;align-items:center}}
 .avatar{{width:76px;height:76px;flex:none;border-radius:50%;overflow:hidden;background:#eef2f7;border:2px solid #fff;box-shadow:0 0 0 2px #e2e8f1}}
 .avatar img{{display:block;width:100%;height:100%;object-fit:cover}}
-.name{{font-size:21px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;max-height:53px;overflow:hidden}}
-.uid{{margin-top:5px;color:#7c8799;font-size:13px;letter-spacing:.2px}}
+.name{{font-size:20px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.uid{{color:#7c8799;font-size:13px;letter-spacing:.2px}}
 .season{{display:inline-block;margin-top:8px;padding:3px 8px;border-radius:6px;background:#edf3ff;color:#356fd1;font-size:12px;font-weight:600}}
 .badges{{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}}
 .badge{{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;background:#f1f4f8;color:#68758a;font-size:11px;line-height:1.3;white-space:nowrap}}
@@ -455,8 +456,11 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 <div class="top">
   <div class="identity">
     <div class="identity-main">
-      <div class="avatar"><img src="{avatar}" alt=""></div>
-      <div style="flex:1;min-width:0"><div class="name">{_escape(player["nickname"])}</div><div class="uid">UID {_escape(player["id"])}</div><span class="season">{season}</span><div class="badges"><span class="badge is-open">{_escape(privacy_label)}</span><span class="badge">{_escape(verify_label)}</span>{clan_badge}</div></div>
+      <div class="name">{_escape(player["nickname"])}</div>
+      <div class="identity-row">
+        <div class="avatar"><img src="{avatar}" alt=""></div>
+        <div style="flex:1;min-width:0"><div class="uid">UID {_escape(player["id"])}</div><span class="season">{season}</span><div class="badges"><span class="badge is-open">{_escape(privacy_label)}</span><span class="badge">{_escape(verify_label)}</span>{clan_badge}</div></div>
+      </div>
     </div>
     <div class="mini-grid">
       <div class="mini"><span class="mini-label">等级</span><span class="mini-value">{player["level"]}</span></div>
