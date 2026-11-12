@@ -116,7 +116,7 @@ body{{width:100%;background:#eceff4;color:#172033;font-family:"MiSans","Microsof
 <div class="overview"><div class="stats"><span>等级 <b>{_escape(level)}</b></span><span>{_escape(count_label)}</span></div>
 <div class="intro">{_escape(intro)}</div><div class="tags">{recruit_html}</div></div>
 <div class="members"><div class="members-head">成员列表<span>最多展示 32 位</span></div>{_members_html(members)}</div>
-<div class="footer">Data by 白泉幽奈 · Dakanu</div></div></body></html>"""
+<div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div></div></body></html>"""
 
 
 async def render_clan_card(clan: dict[str, object], members: dict[str, object] | None, *, region: str) -> bytes:

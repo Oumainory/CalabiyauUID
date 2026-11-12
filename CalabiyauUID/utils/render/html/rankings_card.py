@@ -102,7 +102,7 @@ body{{width:100%;background:#eceff4;color:#172033;font-family:"MiSans","Microsof
 .footer{{padding-top:10px;color:#929cac;font-size:10px;text-align:center}}
 </style></head><body><div class="card">
 <div class="header"><div><div class="title">{_escape(title)}</div><div class="sub">{_escape(season)} · 前 20 名 · 共 {total} 位</div></div><div class="region">{_escape(region)}</div></div>
-<div class="list">{rows}</div><div class="footer">Data by 白泉幽奈 · Dakanu</div>
+<div class="list">{rows}</div><div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
 
 

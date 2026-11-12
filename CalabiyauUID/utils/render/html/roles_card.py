@@ -141,7 +141,7 @@ body{{width:100%;background:#eceff4;color:#172033;font-family:"MiSans","Microsof
 <div class="header"><div><div class="title">超弦体榜</div><div class="note">{mode_label} · 按登场率排序 · {len(entries) if isinstance(entries, list) else 0} 名角色</div></div><div class="region">{_escape(region)}</div></div>
 <div class="panel"><div class="panel-head">角色排行<span>前 20 名 · 场次 · 登场率 · 胜率 · 较昨日变化</span></div><div class="role-list">{_role_rows(entries)}</div></div>
 <div class="panel"><div class="panel-head">地图攻防阵容摘要<span>按对局数最多展示 3 张地图</span></div><div class="maps">{_map_cards(map_stats)}</div></div>
-<div class="footer">Data by 白泉幽奈 · Dakanu</div></div></body></html>"""
+<div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div></div></body></html>"""
 
 
 async def render_roles_card(payload: dict[str, object], *, region: str, ranked_only: bool) -> bytes:

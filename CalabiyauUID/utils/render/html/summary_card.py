@@ -622,7 +622,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
     </div>
   </div>
 </div>
-<div class="footer">Create by GsCore &amp; Power by CalabiyauUID &amp; Data by 白泉幽奈</div>
+<div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
 
 
