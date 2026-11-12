@@ -21,6 +21,7 @@ class MatchCardAssets:
     role_images: Mapping[int, str]
     map_images: Mapping[str, str]
     clan_name: str
+    region: str
 
 
 def _escape(value: str) -> str:
@@ -220,6 +221,7 @@ body{{width:100%;min-height:1px;background:#e9edf2;color:#172033;font-family:"Mi
 .player-name{{font-size:23px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}}
 .player-sub{{display:flex;align-items:center;gap:8px;color:#68758a;font-size:12px;flex-wrap:wrap}}
 .clan{{padding:3px 8px;border-radius:999px;background:#e7edf4;color:#45607a;font-size:11px;font-weight:600}}
+.region{{padding:3px 8px;border-radius:6px;background:#edf3ff;color:#356fd1;font-size:11px;font-weight:700}}
 .title-block{{text-align:right;flex:none}}
 .title{{font-size:20px;font-weight:700}}
 .title-note{{margin-top:3px;color:#7c8799;font-size:11px}}
@@ -291,7 +293,7 @@ body{{width:100%;min-height:1px;background:#e9edf2;color:#172033;font-family:"Mi
   <span class="avatar">{player_avatar}</span>
   <div class="player-meta">
     <span class="player-name">{_escape(player["nickname"])}</span>
-    <div class="player-sub"><span>UID {_escape(player["id"])}</span><span>Lv.{player["level"]}</span><span>{_escape(profile["meta"]["currentSeason"])}</span>{clan_html}</div>
+    <div class="player-sub"><span>UID {_escape(player["id"])}</span><span>Lv.{player["level"]}</span><span>{_escape(profile["meta"]["currentSeason"])}</span><span class="region">{_escape(assets.region)}</span>{clan_html}</div>
   </div>
   <div class="title-block"><div class="title">历史战绩</div><div class="title-note">最近 {len(views)} 场 · 数据来自 Dakanu</div></div>
 </div>

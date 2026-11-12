@@ -93,6 +93,8 @@ async def load_recent_match_views(
     player_id: str,
     matches: list[DakanuMatch],
     limit: int = 8,
+    *,
+    region: str = "cn",
 ) -> list[MatchView]:
     selected = matches[:limit]
     semaphore = asyncio.Semaphore(_DETAIL_CONCURRENCY)
@@ -100,7 +102,7 @@ async def load_recent_match_views(
     async def load_one(match: DakanuMatch) -> DakanuMatchDetail | None:
         async with semaphore:
             try:
-                return await fetch_match_detail(player_id, match["roomId"])
+                return await fetch_match_detail(player_id, match["roomId"], region=region)
             except DakanuError as exc:
                 logger.warning(f"[卡拉彼丘·历史战绩] 读取对局 {match['roomId']} 详情失败：{exc}")
                 return None

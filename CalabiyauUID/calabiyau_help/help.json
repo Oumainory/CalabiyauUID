@@ -4,7 +4,7 @@
     "data": [
       {
         "name": "绑定",
-        "desc": "绑定卡拉彼丘账号，支持 UID 或昵称",
+        "desc": "绑定卡拉彼丘国服账号，支持 UID 或昵称",
         "eg": "绑定 1234567 / 绑定 玩家昵称",
         "need_ck": false,
         "need_sk": false,
@@ -37,28 +37,126 @@
     ]
   },
   "战绩查询": {
-    "desc": "查看卡拉彼丘账号战绩卡片",
+    "desc": "查看战绩总览、历史对局与单场详情",
     "data": [
       {
         "name": "战绩总览",
-        "desc": "查看当前绑定账号或 @ 用户的总览；指定 UID 或昵称查询时支持读取 Dakanu 已有缓存",
-        "eg": "战绩总览 / 战绩总览 1234567 / 战绩总览 玩家昵称",
+        "desc": "查看当前绑定账号或指定 UID/昵称；支持按赛季查看，昵称精确匹配优先",
+        "eg": "战绩总览 / 战绩总览 1234567 国际服 / 战绩总览 玩家昵称 S26EP4",
         "need_ck": false,
         "need_sk": false,
         "need_admin": false
       },
       {
         "name": "历史战绩",
-        "desc": "查看当前绑定账号最近 8 场；可指定 UID 或昵称",
-        "eg": "历史战绩 / 历史战绩 玩家昵称",
+        "desc": "查看最近 8 场对局；可指定 UID/昵称及国服/国际服",
+        "eg": "历史战绩 / 历史战绩 玩家昵称 国际服",
         "need_ck": false,
         "need_sk": false,
         "need_admin": false
       },
       {
         "name": "刷新数据",
-        "desc": "强制刷新当前绑定账号，或指定 UID / 昵称拉取最新战绩",
-        "eg": "刷新数据 / 刷新数据 1234567 / 刷新数据 玩家昵称",
+        "desc": "刷新当前绑定账号，或指定 UID/昵称拉取最新战绩；支持国服/国际服",
+        "eg": "刷新数据 / 刷新数据 1234567 / 刷新数据 玩家昵称 国际服",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "对局",
+        "desc": "查看指定对局详情；视角默认使用当前绑定账号，也可指定 UID/昵称",
+        "eg": "对局 <对局编号> / 对局 <对局编号> 玩家昵称 国际服",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "对局详情",
+        "desc": "对局命令的同义入口",
+        "eg": "对局详情 <对局编号>",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "公开排行榜": {
+    "desc": "查看 Dakanu 公开排行榜及统计榜",
+    "data": [
+      {
+        "name": "排行榜",
+        "desc": "默认查看当前赛季段位榜；可选榜单类型、赛季和区服",
+        "eg": "排行榜 / 排行榜 挑战榜 S26EP4 / 排行榜 国际服",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "段位榜",
+        "desc": "当前赛季段位榜快捷入口",
+        "eg": "段位榜 / 段位榜 S26EP4 国际服",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "团队乱斗榜",
+        "desc": "团队乱斗排行榜快捷入口",
+        "eg": "团队乱斗榜",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "极限推进榜",
+        "desc": "极限推进排行榜快捷入口",
+        "eg": "极限推进榜",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "挑战榜",
+        "desc": "挑战赛排行榜快捷入口",
+        "eg": "挑战榜",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "晶源感染榜",
+        "desc": "晶源感染排行榜快捷入口",
+        "eg": "晶源感染榜",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "角色排行",
+        "desc": "查看超弦体场次、胜率、登场率和地图攻防阵容；默认只统计排位",
+        "eg": "角色排行 / 角色排行 国际服 / 角色排行 全模式",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "好友榜",
+        "desc": "查看全服组队组合榜，不是社交好友列表",
+        "eg": "好友榜 / 好友榜 国际服",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "战队查询": {
+    "desc": "按战队名称或战队 ID 查看资料和成员",
+    "data": [
+      {
+        "name": "战队",
+        "desc": "查看战队等级、简介、成员及可用的招募信息；支持国服/国际服",
+        "eg": "战队 战队名称 / 战队 战队ID 国际服",
         "need_ck": false,
         "need_sk": false,
         "need_admin": false

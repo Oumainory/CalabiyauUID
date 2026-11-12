@@ -41,21 +41,23 @@ class PlayerSnapshot:
     leisure: DakanuLeisure | None
     clan: DakanuClan | None
     saved_at: int
+    region: str = "cn"
 
 
-def player_data_path(player_id: str) -> Path:
+def player_data_path(player_id: str, region: str = "cn") -> Path:
     if not player_id.isdigit():
         raise ValueError("player_id must be numeric")
-    return PLAYER_DATA_DIR / f"{player_id}.json"
+    suffix = ".global.json" if region == "global" else ".json"
+    return PLAYER_DATA_DIR / f"{player_id}{suffix}"
 
 
-def has_player_data(player_id: str) -> bool:
-    path = player_data_path(player_id)
+def has_player_data(player_id: str, region: str = "cn") -> bool:
+    path = player_data_path(player_id, region)
     return path.is_file() and path.stat().st_size > 0
 
 
 def _write_snapshot_sync(snapshot: PlayerSnapshot) -> None:
-    target = player_data_path(snapshot.profile["player"]["id"])
+    target = player_data_path(snapshot.profile["player"]["id"], snapshot.region)
     payload: DakanuSnapshotPayload = {
         "profile": snapshot.profile,
         "leisure": snapshot.leisure,
@@ -70,11 +72,11 @@ def _write_snapshot_sync(snapshot: PlayerSnapshot) -> None:
 async def save_player_snapshot(snapshot: PlayerSnapshot) -> Path:
     """原子写入快照；中断时不会留下半个 JSON。"""
     await to_thread(_write_snapshot_sync)(snapshot)
-    return player_data_path(snapshot.profile["player"]["id"])
+    return player_data_path(snapshot.profile["player"]["id"], snapshot.region)
 
 
-def _read_snapshot_sync(player_id: str) -> PlayerSnapshot | None:
-    path = player_data_path(player_id)
+def _read_snapshot_sync(player_id: str, region: str = "cn") -> PlayerSnapshot | None:
+    path = player_data_path(player_id, region)
     if not path.is_file():
         return None
     raw: object = json.loads(path.read_text(encoding="utf-8"))
@@ -109,20 +111,21 @@ def _read_snapshot_sync(player_id: str) -> PlayerSnapshot | None:
         leisure=typed_leisure,
         clan=typed_clan,
         saved_at=saved_at,
+        region=region,
     )
 
 
-async def load_player_snapshot(player_id: str) -> PlayerSnapshot | None:
-    return await to_thread(_read_snapshot_sync)(player_id)
+async def load_player_snapshot(player_id: str, *, region: str = "cn") -> PlayerSnapshot | None:
+    return await to_thread(_read_snapshot_sync)(player_id, region)
 
 
-async def load_or_fetch_player_snapshot(player_id: str) -> PlayerSnapshot | None:
+async def load_or_fetch_player_snapshot(player_id: str, *, region: str = "cn") -> PlayerSnapshot | None:
     """读取本地快照；缺失时只读 Dakanu cache 并保存，不触发重刷新。"""
-    snapshot = await load_player_snapshot(player_id)
+    snapshot = await load_player_snapshot(player_id, region=region)
     if snapshot is not None:
         return snapshot
     try:
-        profile = await fetch_profile(player_id)
+        profile = await fetch_profile(player_id, region=region)
     except DakanuError as exc:
         if str(exc) == "没有找到这个玩家的战绩缓存。":
             return None
@@ -132,6 +135,7 @@ async def load_or_fetch_player_snapshot(player_id: str) -> PlayerSnapshot | None
         leisure=None,
         clan=None,
         saved_at=int(time.time()),
+        region=region,
     )
     await save_player_snapshot(snapshot)
     return snapshot

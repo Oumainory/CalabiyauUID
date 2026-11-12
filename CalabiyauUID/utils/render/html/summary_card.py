@@ -1,6 +1,7 @@
 """战绩总览静态卡片。"""
 
 import html
+from datetime import datetime
 from dataclasses import dataclass
 
 from gsuid_core.utils.html_render import render_html_to_bytes
@@ -34,6 +35,10 @@ class SummaryAssets:
     role_images: tuple[str, ...]
     clan_name: str
     leisure: DakanuLeisure | None
+    medals: tuple[dict[str, object], ...]
+    medal_images: tuple[str, ...]
+    region: str
+    season_label: str | None
 
 
 def _tier(segment: int) -> tuple[str, str, str]:
@@ -49,6 +54,11 @@ def tier_index(segment: int) -> int:
     """按段位返回素材目录里的段位图标编号；未定级返回 0。"""
     _, _, tier_index = _tier(segment)
     return int(tier_index) if tier_index else 0
+
+
+def tier_label(segment: int) -> str:
+    """返回段位展示名称。"""
+    return _tier(segment)[0]
 
 
 def challenge_tier_index(segment: int) -> int:
@@ -260,6 +270,48 @@ def _peer_block(profile: DakanuProfile) -> str:
     )
 
 
+def _presence_label(profile: DakanuProfile) -> tuple[str, str]:
+    presence = profile.get("presence", {})
+    if not isinstance(presence, dict):
+        return "", ""
+    state = str(presence.get("onlineStatus") or presence.get("state") or "").casefold()
+    if state in {"online", "playing", "in_game", "ingame", "1"}:
+        return "在线", "is-online"
+    if state in {"offline", "away", "0"}:
+        return "离线", "is-offline"
+    last_online = presence.get("lastOnlineAt")
+    if isinstance(last_online, int) and not isinstance(last_online, bool) and last_online > 0:
+        timestamp = last_online / 1000 if last_online > 10_000_000_000 else last_online
+        try:
+            active_at = datetime.fromtimestamp(timestamp).strftime("%m-%d %H:%M")
+        except (OverflowError, OSError, ValueError):
+            return "", ""
+        return f"最近活跃 {active_at}", "is-offline"
+    return "", ""
+
+
+def _medals_html(assets: SummaryAssets) -> str:
+    if not assets.medals:
+        return ""
+    items: list[str] = []
+    for index, medal in enumerate(assets.medals):
+        medal_id = medal.get("id", "")
+        name = medal.get("name")
+        label = name.strip() if isinstance(name, str) and name.strip() else f"勋章 {medal_id}"
+        level = medal.get("level")
+        level_text = f"Lv.{level}" if isinstance(level, int) and not isinstance(level, bool) else ""
+        image = assets.medal_images[index] if index < len(assets.medal_images) else ""
+        image_html = f'<img src="{_escape(image)}" alt="">' if image else '<span class="medal-fallback">章</span>'
+        items.append(
+            f'<div class="medal-item" title="{_escape(label)}">{image_html}'
+            f'<span>{_escape(label)} {level_text}</span></div>'
+        )
+    return (
+        '<div class="medals"><div class="medals-title">勋章</div>'
+        f'<div class="medals-list">{"".join(items)}</div></div>'
+    )
+
+
 def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     player = profile["player"]
     rank = profile["rank"]
@@ -281,6 +333,12 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     clan_badge = (
         f'<span class="badge is-clan">战队 {clan_name}</span>' if clan_name else '<span class="badge">无战队</span>'
     )
+    presence_label, presence_class = _presence_label(profile)
+    presence_badge = (
+        f'<span class="badge {presence_class}">{_escape(presence_label)}</span>' if presence_label else ""
+    )
+    region_label = "国际服" if assets.region == "global" else "国服"
+    medals_html = _medals_html(assets)
     if baseplate and assets.frame:
         baseplate_html = (
             f'<div class="baseplate-art"><img src="{baseplate}" alt=""></div>'
@@ -292,15 +350,21 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
         baseplate_html = '<div class="challenge-empty">暂无基板展示图</div>'
 
     leisure = assets.leisure
-    if leisure is not None and "segment" in leisure:
+    if (
+        leisure is not None
+        and isinstance(leisure.get("segment"), int)
+        and 1 <= leisure["segment"] <= 41
+    ):
         challenge_name, challenge_color = _challenge_label(leisure["segment"])
         challenge_score = leisure.get("score", 0)
         challenge_rate = leisure.get("winRate", 0.0)
+        top_score = leisure.get("topScore")
+        top_text = f" · 最高 {top_score} 分" if isinstance(top_score, int) else ""
         challenge_html = (
             '<div class="rank-card-body">'
             f'<div class="rank-card-icon"><img src="{_escape(assets.challenge_icon)}" alt=""></div>'
             f'<div class="rank-card-info"><div class="rank-card-name" style="color:{challenge_color}">{_escape(challenge_name)}</div>'
-            f'<div class="rank-card-sub">{challenge_score} 挑战分 · 胜率 {_pct(challenge_rate)}</div></div>'
+            f'<div class="rank-card-sub">{challenge_score} 挑战分{top_text} · 胜率 {_pct(challenge_rate)}</div></div>'
             f'<div class="rank-card-right"><b>{leisure.get("star", 0)}</b><span>星级</span></div>'
             "</div>"
         )
@@ -308,6 +372,8 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
         challenge_html = '<div class="challenge-empty">暂无挑战赛段位数据</div>'
     previous = "、".join(player["previousNames"][:2]) or "无"
     rank_pos = f"#{rank['rankPos']}" if rank["rankPos"] is not None else "未上榜"
+    top_rank_position = rank["topRankPos"] if assets.season_label else rank["historicalSegmentPos"]
+    top_rank_pos = f"#{top_rank_position}" if top_rank_position is not None else "—"
     wins = summary["wins"]
     losses = summary["losses"]
     bar_width = max(0.0, min(100.0, summary["winRate"] * 100))
@@ -322,8 +388,12 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     modes_html = (
         "".join(_mode_block(mode, index) for index, mode in enumerate(modes)) or '<div class="empty">暂无模式统计</div>'
     )
-    peers_html = _peer_block(profile)
-    trend_html = _trend_block(profile)
+    peers_html = "" if assets.season_label else _peer_block(profile)
+    trend_html = (
+        '<div class="trend-empty">赛季接口暂未提供逐场排位分趋势</div>'
+        if assets.season_label
+        else _trend_block(profile)
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -347,6 +417,9 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .badge{{display:inline-flex;align-items:center;padding:3px 7px;border-radius:6px;background:#f1f4f8;color:#68758a;font-size:11px;line-height:1.3;white-space:nowrap}}
 .badge.is-open{{background:#eaf7f0;color:#23865d}}
 .badge.is-clan{{background:#fff3e8;color:#a76222}}
+.badge.is-region{{background:#edf3ff;color:#356fd1}}
+.badge.is-online{{background:#e7f8ee;color:#18834d}}
+.badge.is-offline{{background:#f1f4f8;color:#68758a}}
 .mini-grid{{display:flex;flex-wrap:wrap;gap:1px;background:#e4e9f0}}
 .mini{{width:calc(50% - 1px);padding:10px 14px;background:#fff;min-height:58px}}
 .mini-label{{display:block;color:#818da0;font-size:12px;margin-bottom:4px}}
@@ -410,6 +483,11 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .rank-card-right b{{display:block;font-size:18px;line-height:1.1;color:#3c485b}}
 .rank-card-right span{{display:block;margin-top:5px;color:#929cad;font-size:10px}}
 .challenge-empty{{padding:18px 14px;color:#9aa4b4;font-size:12px;text-align:center;background:#fff}}
+.medals{{padding:10px 13px;background:#fff;border-top:1px solid #e7ebf1}}
+.medals-title{{margin-bottom:7px;color:#7b8799;font-size:11px}}
+.medals-list{{display:flex;flex-wrap:wrap;gap:6px}}
+.medal-item{{display:flex;align-items:center;gap:4px;max-width:100%;padding:3px 6px;border:1px solid #e7ebf1;border-radius:7px;background:#fbfcfe;color:#5e6b7e;font-size:9px;white-space:nowrap}}
+.medal-item img,.medal-fallback{{display:flex;width:18px;height:18px;flex:none;align-items:center;justify-content:center;border-radius:50%;object-fit:contain;background:#edf2f8;color:#9a7b2e;font-size:9px;font-weight:700}}
 .baseplate{{padding:12px 14px;background:#fff;display:flex;flex-direction:column}}
 .baseplate-label{{display:flex;justify-content:space-between;color:#7b8799;font-size:11px;margin-bottom:8px}}
 .baseplate-stage{{position:relative;width:100%;height:490px;border-radius:8px;overflow:hidden;background:#f3f6fa}}
@@ -461,7 +539,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
       <div class="uid">UID {_escape(player["id"])}</div>
       <div class="identity-row">
         <div class="avatar"><img src="{avatar}" alt=""></div>
-        <div class="identity-tags"><span class="season">{season}</span><span class="badge is-open">{_escape(privacy_label)}</span><span class="badge">{_escape(verify_label)}</span>{clan_badge}</div>
+<div class="identity-tags"><span class="season">{season}</span><span class="badge is-region">{region_label}</span><span class="badge is-open">{_escape(privacy_label)}</span><span class="badge">{_escape(verify_label)}</span>{presence_badge}{clan_badge}</div>
       </div>
     </div>
     <div class="mini-grid">
@@ -472,7 +550,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
     </div>
     <div class="rank-stack">
       <div class="rank-card">
-        <div class="rank-card-head"><span>排位赛 · 当前段位</span><span>{season}</span></div>
+        <div class="rank-card-head"><span>排位赛 · {"赛季最终段位" if assets.season_label else "当前段位"}</span><span>{season}</span></div>
         <div class="rank-card-body">
           <div class="rank-card-icon"><img src="{tier_icon}" alt=""></div>
           <div class="rank-card-info"><div class="rank-card-name" style="color:{tier_color}">{_escape(tier_label)}</div><div class="rank-card-sub">{rank["divisionScore"]} 段位分</div></div>
@@ -480,17 +558,18 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
         </div>
       </div>
       <div class="rank-card">
-        <div class="rank-card-head"><span>排位赛 · 历史最高</span><span>赛季 S{rank["historicalSegmentSeason"]}</span></div>
+        <div class="rank-card-head"><span>排位赛 · {"该赛季最高" if assets.season_label else "历史最高"}</span><span>{season if assets.season_label else f"赛季 S{rank['historicalSegmentSeason']}"}</span></div>
         <div class="rank-card-body">
           <div class="rank-card-icon"><img src="{top_tier_icon}" alt=""></div>
           <div class="rank-card-info"><div class="rank-card-name" style="color:{top_color}">{_escape(top_label)}</div><div class="rank-card-sub">{rank["topDivisionScore"]} 历史段位分</div></div>
-          <div class="rank-card-right"><b>{rank["historicalSegmentPos"] if rank["historicalSegmentPos"] is not None else "—"}</b><span>历史排名</span></div>
+          <div class="rank-card-right"><b>{_escape(top_rank_pos)}</b><span>{"赛季排名" if assets.season_label else "历史排名"}</span></div>
         </div>
       </div>
       <div class="rank-card">
         <div class="rank-card-head"><span>挑战赛 · 段位</span><span>{season}</span></div>
         {challenge_html}
       </div>
+      {medals_html}
       <div class="baseplate">
         <div class="baseplate-label"><span>基板</span><span>玩家展示图</span></div>
         <div class="baseplate-stage">{baseplate_html}</div>
@@ -535,10 +614,10 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
         </div>
       </div>
     </div>
-    <div class="panel"><div class="panel-head"><span class="panel-title">排位分趋势</span><span class="panel-note">最近 12 场排位</span></div>{trend_html}</div>
+    <div class="panel"><div class="panel-head"><span class="panel-title">排位分趋势</span><span class="panel-note">{"赛季历史数据" if assets.season_label else "最近 12 场排位"}</span></div>{trend_html}</div>
     <div class="lower">
       <div class="panel"><div class="panel-head"><span class="panel-title">角色使用</span><span class="panel-note">按场次</span></div><div class="role-list">{roles_html}</div></div>
-      <div class="panel"><div class="panel-head"><span class="panel-title">模式统计</span><span class="panel-note">当前赛季</span></div>{modes_html}</div>
+      <div class="panel"><div class="panel-head"><span class="panel-title">模式统计</span><span class="panel-note">{season}</span></div>{modes_html}</div>
       {peers_html}
     </div>
   </div>

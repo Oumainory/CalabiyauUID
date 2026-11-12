@@ -12,44 +12,50 @@ from ..utils.helper.maps import MapInfo, resolve_map
 from ..utils.helper.assets import image_data_uri, local_role_image, local_avatar_image, local_map_slug_image
 from ..utils.helper.player_data import (
     PlayerSnapshot,
-    load_or_fetch_player_snapshot,
     load_player_snapshot,
+    load_or_fetch_player_snapshot,
 )
-from ..utils.helper.resolve_player import resolve_player_query
 from ..utils.helper.recent_matches import MatchView, load_recent_match_views
+from ..utils.helper.resolve_player import region_label, resolve_player_query_context
 from ..utils.render.html.matches_card import MatchCardAssets, render_matches_card
 
 _RECENT_LIMIT = 8
 
 
-async def resolve_match_player_id(ev: Event) -> tuple[str, str | None]:
+async def resolve_match_player_id(ev: Event) -> tuple[str, str, str | None]:
     """按 UID、昵称或当前绑定账号解析历史战绩目标。"""
-    return await resolve_player_query(ev)
+    return await resolve_player_query_context(ev)
 
 
-async def load_matches_snapshot(player_id: str, *, allow_cache_fetch: bool) -> PlayerSnapshot | None:
+async def load_matches_snapshot(
+    player_id: str,
+    *,
+    allow_cache_fetch: bool,
+    region: str = "cn",
+) -> PlayerSnapshot | None:
     if allow_cache_fetch:
-        return await load_or_fetch_player_snapshot(player_id)
-    return await load_player_snapshot(player_id)
+        return await load_or_fetch_player_snapshot(player_id, region=region)
+    return await load_player_snapshot(player_id, region=region)
 
 
 async def _load_recent_matches_data(
     player_id: str,
     snapshot: PlayerSnapshot | None = None,
+    region: str = "cn",
 ) -> tuple[PlayerSnapshot, list[MatchView]]:
     if snapshot is None:
-        snapshot = await load_player_snapshot(player_id)
+        snapshot = await load_player_snapshot(player_id, region=region)
     if snapshot is None:
         raise DakanuError("本地还没有这个玩家的战绩。\n发送 kq刷新数据 拉取后再查看。")
     matches = snapshot.profile["matches"]
     if not matches:
         raise DakanuError("历史战绩为空。\n发送 kq刷新数据 更新后再查看。")
-    views = await load_recent_match_views(player_id, matches, _RECENT_LIMIT)
+    views = await load_recent_match_views(player_id, matches, _RECENT_LIMIT, region=region)
     return snapshot, views
 
 
-async def load_recent_matches(player_id: str) -> list[MatchView]:
-    _, views = await _load_recent_matches_data(player_id)
+async def load_recent_matches(player_id: str, *, region: str = "cn") -> list[MatchView]:
+    _, views = await _load_recent_matches_data(player_id, region=region)
     return views
 
 
@@ -125,10 +131,16 @@ async def _build_assets(snapshot: PlayerSnapshot, views: list[MatchView]) -> Mat
         role_images=role_images,
         map_images=map_images,
         clan_name=clan_name,
+        region=region_label(snapshot.region),
     )
 
 
-async def build_recent_matches_card(player_id: str, snapshot: PlayerSnapshot | None = None) -> bytes:
-    snapshot, views = await _load_recent_matches_data(player_id, snapshot)
+async def build_recent_matches_card(
+    player_id: str,
+    snapshot: PlayerSnapshot | None = None,
+    *,
+    region: str = "cn",
+) -> bytes:
+    snapshot, views = await _load_recent_matches_data(player_id, snapshot, region)
     assets = await _build_assets(snapshot, views)
     return await render_matches_card(snapshot.profile, views, assets)

@@ -1,11 +1,12 @@
 """Dakanu 公开读取接口。"""
 
-import asyncio
-from collections import OrderedDict
-from copy import deepcopy
-from threading import Lock
 import time
-from typing import NotRequired, TypedDict, TypeGuard
+import asyncio
+from copy import deepcopy
+from typing import TypedDict, TypeGuard, NotRequired
+from threading import Lock
+from collections import OrderedDict
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -44,6 +45,7 @@ class DakanuPlayer(TypedDict):
     borderId: int
     privacyStatus: str
     accountVerified: bool
+    medals: NotRequired[list[dict[str, object]]]
 
 
 class DakanuPlayerSuggestion(TypedDict):
@@ -289,6 +291,8 @@ class DakanuClan(TypedDict):
     memberCount: int
     icon: DakanuClanIcon
     intro: str
+    recruitment: NotRequired[object]
+    rankRequirement: NotRequired[object]
 
 
 class DakanuClanSearch(TypedDict):
@@ -313,6 +317,11 @@ class DakanuLeisure(TypedDict, total=False):
     mvpCount: int
     favoriteModes: list[DakanuFavoriteMode]
     favoriteRoles: list[int]
+    available: bool
+    retryAfterSeconds: int
+    topRank: int
+    topScore: int
+    topStar: int
 
 
 _ROLE_SLUGS: dict[int, str] = {
@@ -347,6 +356,14 @@ def role_image_url(role_id: int) -> str:
     """按角色 ID 返回站点角色立绘地址；未知角色返回空串。"""
     slug = _ROLE_SLUGS.get(role_id)
     return f"{BASE_URL}/roles/{slug}.webp" if slug else ""
+
+
+def _region_headers(region: str) -> dict[str, str]:
+    """按 Dakanu 前端约定使用 X-Karabi-Region 请求头。"""
+    normalized = region.strip().lower()
+    if normalized not in {"cn", "global"}:
+        normalized = "cn"
+    return {**_DEFAULT_HEADERS, "X-Karabi-Region": normalized}
 
 
 class DakanuError(Exception):
@@ -435,9 +452,10 @@ def _is_profile_response(value: object) -> bool:
 
 
 @to_thread
-def _fetch_profile_sync(player_id: str, use_cache: bool = True) -> DakanuProfile:
+def _fetch_profile_sync(player_id: str, use_cache: bool = True, region: str = "cn") -> DakanuProfile:
     """读取玩家缓存档案；不在查询链路里触发上游刷新。"""
-    cache_key = ("profile", player_id)
+    region = region if region in {"cn", "global"} else "cn"
+    cache_key = ("profile", f"{region}:{player_id}")
     if use_cache:
         cached = _cache_get(cache_key)
         if isinstance(cached, dict):
@@ -446,7 +464,7 @@ def _fetch_profile_sync(player_id: str, use_cache: bool = True) -> DakanuProfile
     url = f"{BASE_URL}/api/summoner/{player_id}/cache"
     try:
         with httpx.Client(
-            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=30.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
             response = _request_with_retry(client, "GET", url)
     except httpx.TimeoutException as exc:
@@ -475,20 +493,21 @@ def _fetch_profile_sync(player_id: str, use_cache: bool = True) -> DakanuProfile
     return profile
 
 
-async def fetch_profile(player_id: str, *, use_cache: bool = True) -> DakanuProfile:
+async def fetch_profile(player_id: str, *, use_cache: bool = True, region: str = "cn") -> DakanuProfile:
     """在线程池读取玩家缓存档案，避免阻塞事件循环。"""
-    return await _fetch_profile_sync(player_id, use_cache)
+    return await _fetch_profile_sync(player_id, use_cache, region)
 
 
 @to_thread
-def _search_players_sync(query: str) -> list[DakanuPlayerSuggestion]:
-    cache_key = ("search", query.casefold())
+def _search_players_sync(query: str, region: str = "cn") -> list[DakanuPlayerSuggestion]:
+    region = region if region in {"cn", "global"} else "cn"
+    cache_key = ("search", f"{region}:{query.casefold()}")
     cached = _cache_get(cache_key)
     if isinstance(cached, list):
         return cached
     try:
         with httpx.Client(
-            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=30.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
             response = _request_with_retry(
                 client,
@@ -517,9 +536,9 @@ def _search_players_sync(query: str) -> list[DakanuPlayerSuggestion]:
     return suggestions
 
 
-async def search_players(query: str) -> list[DakanuPlayerSuggestion]:
+async def search_players(query: str, *, region: str = "cn") -> list[DakanuPlayerSuggestion]:
     """按昵称搜索玩家；仅缓存结构有效的成功响应。"""
-    return await _search_players_sync(query)
+    return await _search_players_sync(query, region)
 
 
 def _is_match_detail_response(value: object) -> bool:
@@ -531,17 +550,18 @@ def _is_match_detail_response(value: object) -> bool:
         return False
     if "teams" not in value or not isinstance(value["teams"], list):
         return False
-    return "rounds" in value and isinstance(value["rounds"], list)
+    return "rounds" not in value or isinstance(value["rounds"], list)
 
 
 @to_thread
-def _fetch_match_detail_sync(player_id: str, room_id: str) -> DakanuMatchDetail | None:
-    url = f"{BASE_URL}/api/match/{room_id}"
+def _fetch_match_detail_sync(player_id: str | None, room_id: str, region: str = "cn") -> DakanuMatchDetail | None:
+    url = f"{BASE_URL}/api/match/{quote(room_id, safe='')}"
+    params = {"player": player_id} if player_id else None
     try:
         with httpx.Client(
-            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=30.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
-            response = _request_with_retry(client, "GET", url, params={"player": player_id})
+            response = _request_with_retry(client, "GET", url, params=params)
     except httpx.TimeoutException as exc:
         raise DakanuError("读取对局详情超时，请稍后再试。") from exc
     if response.status_code == 404:
@@ -562,12 +582,19 @@ def _fetch_match_detail_sync(player_id: str, room_id: str) -> DakanuMatchDetail 
         logger.warning(f"[卡拉彼丘·最近对局] 对局 {room_id} 响应结构异常")
         return None
     details: DakanuMatchDetail = payload
+    if not isinstance(details.get("rounds"), list):
+        details["rounds"] = []
     return details
 
 
-async def fetch_match_detail(player_id: str, room_id: str) -> DakanuMatchDetail | None:
+async def fetch_match_detail(
+    player_id: str | None,
+    room_id: str,
+    *,
+    region: str = "cn",
+) -> DakanuMatchDetail | None:
     """读取单场对局详情；无详情时返回 None。"""
-    return await _fetch_match_detail_sync(player_id, room_id)
+    return await _fetch_match_detail_sync(player_id, room_id, region)
 
 
 def _is_refresh_response(value: object) -> bool:
@@ -579,10 +606,10 @@ def _is_refresh_response(value: object) -> bool:
 
 
 @to_thread
-def _start_refresh_sync(player_id: str) -> DakanuRefreshJob:
+def _start_refresh_sync(player_id: str, region: str = "cn") -> DakanuRefreshJob:
     try:
         with httpx.Client(
-            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=30.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
             response = _request_with_retry(client, "POST", f"{BASE_URL}/api/summoner/{player_id}/refresh")
     except httpx.TimeoutException as exc:
@@ -607,15 +634,15 @@ def _start_refresh_sync(player_id: str) -> DakanuRefreshJob:
     return payload["job"]
 
 
-async def start_profile_refresh(player_id: str) -> DakanuRefreshJob:
-    return await _start_refresh_sync(player_id)
+async def start_profile_refresh(player_id: str, *, region: str = "cn") -> DakanuRefreshJob:
+    return await _start_refresh_sync(player_id, region)
 
 
 @to_thread
-def _fetch_refresh_status_sync(player_id: str) -> DakanuRefreshJob:
+def _fetch_refresh_status_sync(player_id: str, region: str = "cn") -> DakanuRefreshJob:
     try:
         with httpx.Client(
-            timeout=30.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=30.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
             response = _request_with_retry(client, "GET", f"{BASE_URL}/api/summoner/{player_id}/refresh")
     except httpx.TimeoutException as exc:
@@ -634,19 +661,19 @@ def _fetch_refresh_status_sync(player_id: str) -> DakanuRefreshJob:
     return payload["job"]
 
 
-async def fetch_refresh_status(player_id: str) -> DakanuRefreshJob:
-    return await _fetch_refresh_status_sync(player_id)
+async def fetch_refresh_status(player_id: str, *, region: str = "cn") -> DakanuRefreshJob:
+    return await _fetch_refresh_status_sync(player_id, region)
 
 
-async def refresh_profile(player_id: str) -> DakanuProfile:
+async def refresh_profile(player_id: str, *, region: str = "cn") -> DakanuProfile:
     """启动刷新并等待缓存可读；缓存仍未生成时抛出 DakanuError。"""
-    job = await start_profile_refresh(player_id)
+    job = await start_profile_refresh(player_id, region=region)
     deadline = asyncio.get_running_loop().time() + _REFRESH_TIMEOUT
     while job["state"] == "running":
         if asyncio.get_running_loop().time() >= deadline:
             raise DakanuError("刷新仍在进行，请稍后用 kq战绩总览 查看。")
         await asyncio.sleep(_REFRESH_POLL_INTERVAL)
-        job = await fetch_refresh_status(player_id)
+        job = await fetch_refresh_status(player_id, region=region)
     if job["state"] == "failed":
         error = job["error"]
         message = error["message"].strip()
@@ -654,7 +681,7 @@ async def refresh_profile(player_id: str) -> DakanuProfile:
 
     for _ in range(5):
         try:
-            return await fetch_profile(player_id, use_cache=False)
+            return await fetch_profile(player_id, use_cache=False, region=region)
         except DakanuError as exc:
             if str(exc) != "没有找到这个玩家的战绩缓存。":
                 raise
@@ -671,10 +698,10 @@ def _is_clan_search(value: object) -> bool:
 
 
 @to_thread
-def _fetch_clan_sync(clan_id: str) -> DakanuClan | None:
+def _fetch_clan_sync(clan_id: str, region: str = "cn") -> DakanuClan | None:
     try:
         with httpx.Client(
-            timeout=20.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=20.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
             response = _request_with_retry(
                 client,
@@ -704,11 +731,11 @@ def _fetch_clan_sync(clan_id: str) -> DakanuClan | None:
     return None
 
 
-async def fetch_clan(clan_id: str) -> DakanuClan | None:
+async def fetch_clan(clan_id: str, *, region: str = "cn") -> DakanuClan | None:
     """按 clanId 读取战队信息；读取失败时不打断总览。"""
     if not clan_id:
         return None
-    return await _fetch_clan_sync(clan_id)
+    return await _fetch_clan_sync(clan_id, region)
 
 
 def _is_leisure_response(value: object) -> bool:
@@ -720,10 +747,10 @@ def _is_leisure_response(value: object) -> bool:
 
 
 @to_thread
-def _fetch_leisure_sync(player_id: str) -> DakanuLeisure | None:
+def _fetch_leisure_sync(player_id: str, region: str = "cn") -> DakanuLeisure | None:
     try:
         with httpx.Client(
-            timeout=20.0, follow_redirects=True, headers=_DEFAULT_HEADERS
+            timeout=20.0, follow_redirects=True, headers=_region_headers(region)
         ) as client:
             response = _request_with_retry(
                 client,
@@ -744,11 +771,194 @@ def _fetch_leisure_sync(player_id: str) -> DakanuLeisure | None:
     except ValueError:
         logger.warning(f"[卡拉彼丘·战绩总览] 玩家 {player_id} 挑战赛数据不是 JSON")
         return None
-    if not _is_leisure_response(payload):
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
         return None
-    return payload["leisure"]
+    leisure = payload.get("leisure")
+    if payload.get("available") is False or not isinstance(leisure, dict):
+        return None
+    return leisure
 
 
-async def fetch_leisure(player_id: str) -> DakanuLeisure | None:
+async def fetch_leisure(player_id: str, *, region: str = "cn") -> DakanuLeisure | None:
     """读取挑战赛数据；接口无数据时返回 None。"""
-    return await _fetch_leisure_sync(player_id)
+    return await _fetch_leisure_sync(player_id, region)
+
+
+@to_thread
+def _fetch_public_json_sync(
+    path: str,
+    params: dict[str, str | int] | None = None,
+    region: str = "cn",
+    cache_group: str = "",
+    cache_ttl: float = 0.0,
+) -> object | None:
+    """读取 Dakanu 的公开 JSON 接口，并按区服和完整参数短暂缓存。"""
+    normalized_region = region if region in {"cn", "global"} else "cn"
+    query_key = urlencode(sorted((params or {}).items()))
+    cache_key = (cache_group or "public", f"{normalized_region}:{path}?{query_key}")
+    if cache_ttl:
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True, headers=_region_headers(normalized_region)) as client:
+            response = _request_with_retry(client, "GET", f"{BASE_URL}{path}", params=params)
+    except httpx.TimeoutException as exc:
+        raise DakanuError("查询战绩站超时，请稍后再试。") from exc
+    if response.status_code in (204, 404):
+        return None
+    if response.status_code == 429:
+        raise DakanuError("查询过于频繁，请稍后再试。")
+    if response.status_code >= 500:
+        raise DakanuError("战绩站暂时无法读取数据，请稍后再试。")
+    if response.status_code not in (200, 202):
+        logger.warning(f"[卡拉彼丘·公开查询] {path} 返回 HTTP {response.status_code}")
+        raise DakanuError("读取战绩站数据失败，请稍后再试。")
+    try:
+        payload: object = response.json()
+    except ValueError as exc:
+        raise DakanuError("战绩站返回的数据格式异常，请稍后再试。") from exc
+    is_refreshing = isinstance(payload, dict) and payload.get("refreshing") is True
+    if cache_ttl and response.status_code == 200 and not is_refreshing:
+        _cache_set(cache_key, payload, cache_ttl)
+    return payload
+
+
+async def _fetch_public_json(
+    path: str,
+    *,
+    params: dict[str, str | int] | None = None,
+    region: str = "cn",
+    cache_group: str = "",
+    cache_ttl: float = 0.0,
+) -> object | None:
+    return await _fetch_public_json_sync(path, params, region, cache_group, cache_ttl)
+
+
+def _is_ok_list(payload: object, key: str) -> bool:
+    return isinstance(payload, dict) and payload.get("ok") is True and isinstance(payload.get(key), list)
+
+
+async def fetch_ranking_types(*, region: str = "cn") -> dict[str, object]:
+    payload = await _fetch_public_json(
+        "/api/rankings/types", region=region, cache_group="rank-types", cache_ttl=1800
+    )
+    if not _is_ok_list(payload, "types"):
+        raise DakanuError("暂时无法读取排行榜类型，请稍后再试。")
+    return payload
+
+
+async def fetch_ranking_seasons(*, region: str = "cn") -> dict[str, object]:
+    payload = await _fetch_public_json(
+        "/api/rankings/seasons", region=region, cache_group="rank-seasons", cache_ttl=600
+    )
+    if not isinstance(payload, dict) or payload.get("ok") is not True or not isinstance(payload.get("seasons"), list):
+        raise DakanuError("暂时无法读取赛季列表，请稍后再试。")
+    return payload
+
+
+async def fetch_rankings(
+    type_id: int,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    season_id: int | None = None,
+    region: str = "cn",
+) -> dict[str, object]:
+    params: dict[str, str | int] = {"type": type_id, "page": page, "page_size": page_size}
+    if season_id is not None and season_id > 0:
+        params["season_id"] = season_id
+    payload = await _fetch_public_json(
+        "/api/rankings", params=params, region=region, cache_group="rankings", cache_ttl=300
+    )
+    if not _is_ok_list(payload, "entries"):
+        raise DakanuError("暂时无法读取排行榜，请稍后再试。")
+    return payload
+
+
+async def fetch_role_ranking(*, ranked_only: bool = True, region: str = "cn") -> dict[str, object]:
+    params: dict[str, str | int] = {"min_games": 3}
+    if not ranked_only:
+        params["all"] = 1
+    payload = await _fetch_public_json(
+        "/api/roles/ranking", params=params, region=region, cache_group="role-ranking", cache_ttl=120
+    )
+    if not _is_ok_list(payload, "entries"):
+        raise DakanuError("暂时无法读取超弦体排行，请稍后再试。")
+    if not isinstance(payload.get("mapStats"), list):
+        payload["mapStats"] = []
+    return payload
+
+
+async def fetch_friend_ranking(
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    region: str = "cn",
+) -> dict[str, object]:
+    params: dict[str, str | int] = {
+        "sort": "games",
+        "min_games": 10,
+        "page": page,
+        "page_size": page_size,
+    }
+    payload = await _fetch_public_json(
+        "/api/friends/ranking", params=params, region=region, cache_group="friend-ranking", cache_ttl=300
+    )
+    if not _is_ok_list(payload, "entries"):
+        raise DakanuError("暂时无法读取好友榜，请稍后再试。")
+    return payload
+
+
+async def search_clans(
+    *,
+    name: str | None = None,
+    clan_id: str | None = None,
+    limit: int = 10,
+    region: str = "cn",
+) -> dict[str, object]:
+    params: dict[str, str | int] = {"limit": limit}
+    if name and name.strip():
+        params["name"] = name.strip()
+    if clan_id and clan_id.strip():
+        params["clan_id"] = clan_id.strip()
+    if not name and not clan_id:
+        raise DakanuError("请提供战队名称或战队 ID。")
+    payload = await _fetch_public_json(
+        "/api/clans/search", params=params, region=region, cache_group="clan-search", cache_ttl=300
+    )
+    if not _is_ok_list(payload, "clans"):
+        raise DakanuError("暂时无法搜索战队，请稍后再试。")
+    return payload
+
+
+async def fetch_clan_members(clan_id: str, *, region: str = "cn") -> dict[str, object] | None:
+    path = f"/api/clans/{quote(clan_id, safe='')}/members"
+    payload = await _fetch_public_json(path, region=region, cache_group="clan-members", cache_ttl=300)
+    if payload is None:
+        return None
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        return None
+    members = payload.get("members")
+    if payload.get("refreshing") is True and (not isinstance(members, list) or not members):
+        await asyncio.sleep(2)
+        payload = await _fetch_public_json(path, region=region, cache_group="clan-members", cache_ttl=300)
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            return None
+    return payload
+
+
+async def fetch_season_data(player_id: str, season_id: int, *, region: str = "cn") -> dict[str, object] | None:
+    payload = await _fetch_public_json(
+        f"/api/summoner/{quote(player_id, safe='')}/seasons",
+        params={"season_id": season_id},
+        region=region,
+        cache_group="season-data",
+        cache_ttl=300,
+    )
+    if payload is None:
+        return None
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        return None
+    season = payload.get("season")
+    return season if isinstance(season, dict) else None
