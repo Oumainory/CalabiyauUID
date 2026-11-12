@@ -126,12 +126,53 @@ def _team_score(
     return score_a if team_index == 0 else score_b
 
 
-def _player_rows(team: dict[str, object], viewer_id: str | None, role_images: Mapping[int, str]) -> str:
+def _team_badges(players: list[object]) -> dict[int, tuple[str, str]]:
+    explicit: dict[int, tuple[str, str]] = {}
+    for index, player in enumerate(players):
+        if not isinstance(player, dict):
+            continue
+        if player.get("mvp"):
+            explicit[index] = ("MVP", "mvp")
+        elif player.get("svp"):
+            explicit[index] = ("SVP", "svp")
+    if explicit:
+        return explicit
+
+    rated = [
+        (score, index)
+        for index, player in enumerate(players)
+        if isinstance(player, dict)
+        if (score := _int(player.get("score"))) is not None
+    ]
+    if not rated:
+        return {}
+    highest = max(score for score, _ in rated)
+    return {index: ("最高评分", "top") for score, index in rated if score == highest}
+
+
+def _max_damage(teams: list[tuple[int, dict[str, object], str]]) -> int:
+    damages = [
+        damage
+        for _, team, _ in teams
+        for player in (team.get("players") if isinstance(team.get("players"), list) else [])
+        if isinstance(player, dict)
+        if (damage := _int(player.get("damage"))) is not None
+    ]
+    return max(damages, default=0)
+
+
+def _player_rows(
+    team: dict[str, object],
+    viewer_id: str | None,
+    role_images: Mapping[int, str],
+    max_damage: int,
+) -> str:
     players = team.get("players")
     if not isinstance(players, list):
         return '<div class="empty">暂无阵容数据</div>'
     output: list[str] = []
-    for player in players:
+    badges = _team_badges(players)
+    for index, player in enumerate(players):
         if not isinstance(player, dict):
             continue
         player_id = str(player.get("playerId", ""))
@@ -147,34 +188,33 @@ def _player_rows(team: dict[str, object], viewer_id: str | None, role_images: Ma
             role_avatar = f'<span class="role-art is-empty">{_escape(initial)}</span>'
 
         kills = _int(player.get("kills"))
-        assists = _int(player.get("assists"))
         deaths = _int(player.get("deaths"))
+        assists = _int(player.get("assists"))
         damage = _int(player.get("damage"))
         score = _int(player.get("score"))
         personal_score = _int(player.get("personalScore"))
         strategy_score = _int(player.get("strategyScore"))
         teamwork_score = _int(player.get("teamworkScore"))
-        stats = []
-        if kills is not None or assists is not None or deaths is not None:
-            stats.append(
-                f"{kills if kills is not None else '—'}/{assists if assists is not None else '—'}"
-                f"/{deaths if deaths is not None else '—'}"
-            )
-        if damage is not None:
-            stats.append(f"{damage:,} 伤害")
-        if score is not None:
-            stats.append(f"评分 {score}")
-        if personal_score is not None:
-            stats.append(f"个人 {personal_score}")
-        if strategy_score is not None:
-            stats.append(f"策略 {strategy_score}")
-        if teamwork_score is not None:
-            stats.append(f"团队 {teamwork_score}")
+        badge = badges.get(index)
+        badge_html = f'<span class="player-badge badge-{badge[1]}">{badge[0]}</span>' if badge else ""
+        damage_text = f"{damage:,}" if damage is not None else "—"
+        damage_width = max(0, damage) / max_damage * 100 if damage is not None and max_damage > 0 else 0
         tone = " target" if target else ""
         output.append(
             f'<div class="player{tone}">{role_avatar}<div class="player-main">'
-            f'<span class="role">{_escape(role)}</span><span class="name">{_escape(nickname)}</span>'
-            f'<span class="stats">{" · ".join(stats) or "暂无个人数据"}</span></div></div>'
+            f'<div class="player-top"><div class="identity"><div class="identity-title">'
+            f'<span class="role">{_escape(role)}</span>{badge_html}</div>'
+            f'<span class="name">{_escape(nickname)}</span></div>'
+            f'<span class="kda"><b>{kills if kills is not None else "—"}</b><i>/</i>'
+            f'<b class="death">{deaths if deaths is not None else "—"}</b><i>/</i>'
+            f'<b>{assists if assists is not None else "—"}</b></span></div>'
+            f'<div class="player-stats">'
+            f'<div class="stat"><span>伤害</span><b>{damage_text}</b></div>'
+            f'<div class="stat"><span>评分</span><b>{score if score is not None else "—"}</b></div>'
+            f'<div class="stat is-secondary"><span>个人</span><b>{personal_score if personal_score is not None else "—"}</b></div>'
+            f'<div class="stat is-secondary"><span>策略</span><b>{strategy_score if strategy_score is not None else "—"}</b></div>'
+            f'<div class="stat is-secondary"><span>团队</span><b>{teamwork_score if teamwork_score is not None else "—"}</b></div>'
+            f'</div><div class="damage-track"><span style="width:{damage_width:.1f}%"></span></div></div></div>'
         )
     return "".join(output) or '<div class="empty">暂无阵容数据</div>'
 
@@ -185,11 +225,20 @@ def _team_html(
     score: int | None,
     viewer_id: str | None,
     role_images: Mapping[int, str],
+    max_damage: int,
+    tone: str,
 ) -> str:
     score_html = f'<span class="team-score">{score}</span>' if score is not None else ""
+    team_name = team.get("label")
+    team_name_html = (
+        f'<small>{_escape(team_name)}</small>'
+        if isinstance(team_name, str) and team_name and team_name != label
+        else ""
+    )
     return (
-        f'<section class="team"><div class="team-head"><b>{label}</b>{score_html}</div>'
-        f"{_player_rows(team, viewer_id, role_images)}</section>"
+        f'<section class="team team-{tone}"><div class="team-head"><div class="team-title">'
+        f'<b>{label}</b>{team_name_html}</div>{score_html}</div>'
+        f"{_player_rows(team, viewer_id, role_images, max_damage)}</section>"
     )
 
 
@@ -223,6 +272,7 @@ def render_match_detail_html(
     viewer_id: str | None,
     region: str,
     role_images: Mapping[int, str] | None = None,
+    map_image: str = "",
 ) -> str:
     summary = detail.get("summary")
     map_id = _int(_preferred(summary, detail, "mapId", "map_id"))
@@ -235,6 +285,7 @@ def render_match_detail_html(
 
     teams, viewer_team_index = _ordered_teams(detail.get("teams"), viewer_id)
     role_images = role_images or {}
+    max_damage = _max_damage(teams)
     team_html = "".join(
         _team_html(
             team,
@@ -242,12 +293,22 @@ def render_match_detail_html(
             _team_score(team, index, viewer_team_index, summary),
             viewer_id,
             role_images,
+            max_damage,
+            "own" if position == 0 else "opponent",
         )
-        for index, team, label in teams
+        for position, (index, team, label) in enumerate(teams)
     )
     if not team_html:
         team_html = '<div class="empty">战绩站暂未提供双方阵容详情</div>'
     score_label = _score_label(summary, teams, viewer_team_index)
+    if " : " in score_label:
+        my_score, opponent_score = score_label.split(" : ", 1)
+        score_html = (
+            f'<span class="score-self">{_escape(my_score)}</span>'
+            f'<i>:</i><span class="score-opponent">{_escape(opponent_score)}</span>'
+        )
+    else:
+        score_html = f'<span class="score-missing">{_escape(score_label)}</span>'
 
     viewer_nickname = ""
     for _, team, _ in teams:
@@ -262,38 +323,85 @@ def render_match_detail_html(
                 break
         if viewer_nickname:
             break
-    viewer_note = f" · 视角 {_escape(viewer_nickname)}" if viewer_nickname else ""
+    viewer_html = f'<span class="hero-viewer">视角 {_escape(viewer_nickname)}</span>' if viewer_nickname else ""
+    map_art = (
+        f'<div class="hero-art" style="background-image:url(\'{_escape(map_image)}\')"></div>' if map_image else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>对局详情</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;background:#eceff4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
-.card{{width:100%;padding:22px 24px 12px;background:linear-gradient(135deg,#f8fafc 0%,#e5ebf4 100%)}}
-.header{{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:4px 2px 14px}}
-.title{{font-size:23px;font-weight:750;color:#263247}}.room{{margin-top:5px;color:#8994a6;font:10px "Mono",monospace}}
-.region{{padding:5px 9px;border-radius:7px;background:#edf3ff;color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
-.summary{{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border:1px solid #dce3ec;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(39,55,80,.06)}}
-.meta{{min-width:0}}.mode{{color:#7a879b;font-size:11px}}.map{{margin-top:3px;color:#344156;font-size:17px;font-weight:750}}
-.summary-extra{{display:flex;align-items:center;gap:8px;margin-top:6px;color:#8994a6;font-size:10px}}
-.outcome{{padding:3px 7px;border-radius:999px;background:#edf3ff;color:#5573a5;font-weight:700}}
-.outcome-win{{background:#e9f6ee;color:#268054}}.outcome-lose{{background:#f9eded;color:#b75a5a}}.outcome-draw{{background:#f4f1e8;color:#907b37}}
-.score{{flex:none;color:#263247;font-size:24px;font-weight:750;white-space:nowrap}}.duration{{flex:none;color:#8994a6;font-size:10px;text-align:right;white-space:nowrap}}
-.teams{{display:flex;gap:10px;margin-top:12px;align-items:flex-start}}
-.team{{flex:1;min-width:0;overflow:hidden;border:1px solid #dce3ec;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(39,55,80,.05)}}
-.team-head{{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #edf0f5;color:#344156;font-size:12px;font-weight:700}}
-.team-score{{color:#3778e8;font-size:17px}}.team:nth-child(2) .team-score{{color:#c66e72}}
-.player{{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid #f0f2f6}}
-.player:last-child{{border-bottom:0}}.player.target{{background:#f0f8f3;box-shadow:inset 2px 0 #82b89a}}
-.role-art{{display:flex;width:46px;height:54px;align-items:center;justify-content:center;overflow:hidden;border:1px solid #e3e9f1;border-radius:9px;background:linear-gradient(145deg,#f3f6fb,#e5ebf3)}}
-.role-art img{{display:block;width:100%;height:100%;object-fit:contain}}.role-art.is-empty{{color:#71829a;font-size:21px;font-weight:700}}
-.player-main{{display:flex;min-width:0;flex-direction:column;gap:2px}}
-.role{{overflow:hidden;color:#29384d;font-size:14px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}}
-.target .role{{color:#286548}}.name{{overflow:hidden;color:#909aaa;font-size:9px;text-overflow:ellipsis;white-space:nowrap}}
-.stats{{color:#818da0;font-size:9px;line-height:1.5;overflow-wrap:anywhere}}
-.empty{{padding:28px 14px;color:#98a2b2;text-align:center;font-size:12px}}
-.footer{{padding-top:10px;color:#929cac;font-size:10px;text-align:center}}
+.card{{width:100%;padding:24px;background:linear-gradient(145deg,#f8fafc 0%,#e9eef4 100%)}}
+.hero{{position:relative;overflow:hidden;padding:14px 18px 12px;border:1px solid #dce3ec;border-radius:13px;background:#f5f7fa;box-shadow:0 5px 18px rgba(22,26,33,.07)}}
+.hero-win{{background:linear-gradient(135deg,#eaf2ff 0%,#f6f8fc 100%)}}
+.hero-lose{{background:linear-gradient(135deg,#fff0ef 0%,#fbf7f7 100%)}}
+.hero-draw{{background:linear-gradient(135deg,#fbf5e8 0%,#faf8f2 100%)}}
+.hero-unknown{{background:linear-gradient(135deg,#eef1f5 0%,#f8fafc 100%)}}
+.hero-art,.hero-veil{{position:absolute;inset:0}}
+.hero-art{{background-size:cover;background-position:center 30%;background-repeat:no-repeat}}
+.hero-veil{{background:rgba(255,255,255,.58)}}
+.hero-win .hero-veil{{background:rgba(243,247,255,.58)}}
+.hero-lose .hero-veil{{background:rgba(255,245,244,.58)}}
+.hero-draw .hero-veil{{background:rgba(255,250,240,.58)}}
+.hero-unknown .hero-veil{{background:rgba(255,255,255,.62)}}
+.hero-content{{position:relative;z-index:1}}
+.hero-top,.hero-main,.hero-bottom{{display:flex;align-items:center;justify-content:space-between;gap:10px}}
+.mode{{overflow:hidden;color:#68758a;font-size:12px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}}
+.region{{flex:none;padding:4px 8px;border-radius:6px;background:rgba(237,243,255,.88);color:#356fd1;font-size:10px;font-weight:700;white-space:nowrap}}
+.hero-main{{margin-top:5px}}
+.map{{min-width:0;overflow:hidden;color:#27364a;font-size:25px;font-weight:750;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}}
+.score{{display:flex;flex:none;align-items:baseline;gap:8px;margin-left:12px;font-variant-numeric:tabular-nums;white-space:nowrap}}
+.score-self,.score-opponent{{font-size:34px;font-weight:800;line-height:1;color:#3778e8}}
+.score-opponent{{color:#c66e72}}
+.score i{{color:#8390a2;font-size:19px;font-style:normal;font-weight:500}}
+.score-missing{{color:#536176;font-size:17px;font-weight:700}}
+.hero-bottom{{justify-content:flex-start;flex-wrap:wrap;margin-top:10px;color:#68758a;font-size:10.5px}}
+.outcome{{padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.75);font-size:10px;font-weight:700}}
+.outcome-win{{color:#2563eb}}.outcome-lose{{color:#c62828}}.outcome-draw{{color:#946200}}.outcome-unknown{{color:#6f7c8f}}
+.hero-viewer{{margin-left:auto;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.room{{max-width:150px;overflow:hidden;color:#8490a1;font:10px "Mono",Consolas,monospace;text-overflow:ellipsis;white-space:nowrap}}
+.teams{{display:flex;align-items:stretch;gap:12px;margin-top:12px}}
+.team{{display:flex;flex:1;min-width:0;flex-direction:column;overflow:hidden;border:1px solid #dce3ec;border-left:4px solid var(--team-accent);border-radius:12px;box-shadow:0 5px 16px rgba(22,26,33,.05)}}
+.team-own{{--team-accent:#4b8ef0;--team-tint:rgba(75,142,240,.12);background:linear-gradient(145deg,#f5f9ff 0%,#edf3fc 100%)}}
+.team-opponent{{--team-accent:#e2453c;--team-tint:rgba(226,69,60,.11);background:linear-gradient(145deg,#fff8f7 0%,#f8efee 100%)}}
+.team-head{{display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:8px 12px;border-bottom:1px solid rgba(216,224,234,.85);background:rgba(255,255,255,.4)}}
+.team-title{{display:flex;align-items:baseline;gap:7px;min-width:0;color:#344156;font-size:12px}}
+.team-title b{{color:var(--team-accent);font-size:13px}}
+.team-title small{{overflow:hidden;color:#8793a4;font-size:9px;text-overflow:ellipsis;white-space:nowrap}}
+.team-score{{color:var(--team-accent);font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}}
+.player{{display:grid;grid-template-columns:60px minmax(0,1fr);align-items:center;gap:8px;min-height:84px;padding:6px 8px;border-bottom:1px solid rgba(221,227,235,.8)}}
+.player:last-child{{border-bottom:0}}
+.player.target{{box-shadow:inset 3px 0 var(--team-accent),inset 0 0 0 1px var(--team-tint);background:linear-gradient(90deg,var(--team-tint),rgba(255,255,255,.22) 70%)}}
+.role-art{{display:flex;width:60px;height:72px;align-items:center;justify-content:center;overflow:hidden;border:1px solid #e3e9f1;border-radius:8px;background:linear-gradient(145deg,#f3f6fb,#e5ebf3);box-shadow:0 2px 6px rgba(39,55,80,.08)}}
+.role-art img{{display:block;width:100%;height:100%;object-fit:cover;object-position:center top}}
+.role-art.is-empty{{color:#71829a;font-size:23px;font-weight:700}}
+.player-main{{display:flex;min-width:0;flex-direction:column;gap:4px}}
+.player-top{{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0}}
+.identity{{display:flex;min-width:0;flex-direction:column;gap:1px}}
+.identity-title{{display:flex;align-items:center;gap:4px;min-width:0}}
+.role{{overflow:hidden;color:#29384d;font-size:12px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}}
+.name{{overflow:hidden;color:#778397;font-size:9.5px;text-overflow:ellipsis;white-space:nowrap}}
+.kda{{display:flex;flex:none;align-items:baseline;gap:2px;color:#26364b;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}}
+.kda i{{color:#8a96a7;font-size:11px;font-style:normal;font-weight:500}}
+.kda .death{{color:#c62828}}
+.player-badge{{flex:none;padding:1px 4px;border-radius:4px;color:#fff;font-size:8px;font-weight:700;line-height:12px;white-space:nowrap}}
+.badge-mvp{{background:#b8862c}}.badge-svp{{background:#4b8ef0}}.badge-top{{background:#7f8fa5}}
+.player-stats{{display:grid;grid-template-columns:1.1fr .8fr repeat(3,minmax(0,1fr));gap:3px;min-width:0}}
+.stat{{display:flex;min-width:0;flex-direction:column;gap:1px}}
+.stat span{{color:#7b8798;font-size:8px;line-height:1.1;white-space:nowrap}}
+.stat b{{overflow:hidden;color:#344156;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}}
+.stat.is-secondary span{{color:#929cad}}
+.stat.is-secondary b{{color:#778397;font-size:9px;font-weight:600}}
+.damage-track{{height:3px;overflow:hidden;border-radius:3px;background:rgba(128,145,166,.17)}}
+.damage-track span{{display:block;height:100%;border-radius:3px;background:var(--team-accent);opacity:.8}}
+.empty{{display:flex;flex:1;align-items:center;justify-content:center;min-height:90px;padding:20px 12px;color:#8a96a7;text-align:center;font-size:11px}}
+.footer{{padding-top:10px;color:#7c8799;font-size:10px;text-align:center}}
 </style></head><body><div class="card">
-<div class="header"><div><div class="title">对局详情{viewer_note}</div><div class="room">对局编号 {_escape(room_id)}</div></div><div class="region">{_escape(region)}</div></div>
-<div class="summary"><div class="meta"><div class="mode">{_escape(mode)}</div><div class="map">{_escape(map_name)}</div><div class="summary-extra"><span class="outcome outcome-{result_tone}">{_escape(result_label)}</span><span>{_escape(played_at)}</span></div></div><div class="score">{_escape(score_label)}</div><div class="duration">时长<br>{_escape(duration)}</div></div>
+<section class="hero hero-{result_tone}">{map_art}<div class="hero-veil"></div><div class="hero-content">
+<div class="hero-top"><span class="mode">{_escape(mode)}</span><span class="region">{_escape(region)}</span></div>
+<div class="hero-main"><div class="map">{_escape(map_name)}</div><div class="score">{score_html}</div></div>
+<div class="hero-bottom"><span class="outcome outcome-{result_tone}">{_escape(result_label)}</span>
+<span>{_escape(played_at)}</span><span>时长 {_escape(duration)}</span>{viewer_html}<span class="room">对局编号 {_escape(room_id)}</span></div>
+</div></section>
 <div class="teams">{team_html}</div><div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
 
@@ -305,6 +413,7 @@ async def render_match_detail_card(
     viewer_id: str | None,
     region: str,
     role_images: Mapping[int, str] | None = None,
+    map_image: str = "",
 ) -> bytes:
     return await render_html_to_bytes(
         render_match_detail_html(
@@ -313,6 +422,7 @@ async def render_match_detail_card(
             viewer_id=viewer_id,
             region=region,
             role_images=role_images,
+            map_image=map_image,
         ),
         max_width=1520,
         dpi=192,

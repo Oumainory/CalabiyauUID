@@ -1,10 +1,34 @@
 """指定对局详情查询与卡片编排。"""
 
+from pathlib import Path
+
+from gsuid_core.pool import to_thread
+
 from ..utils.api.dakanu import DakanuError, DakanuMatch, fetch_profile, fetch_match_detail
+from ..utils.downloader import resolve_image
+from ..utils.helper.maps import MapInfo, resolve_map
+from ..utils.helper.assets import image_data_uri, local_map_slug_image
 from ..utils.helper.player_data import load_player_snapshot
 from ..utils.helper.role_images import load_role_images
 from ..utils.helper.resolve_player import region_label
 from ..utils.render.html.match_detail_card import render_match_detail_card
+
+
+def _map_url(slug: str) -> str:
+    return f"https://www.dakanu.com/maps-wide/{slug}.webp"
+
+
+def _read_image_uri(path: Path) -> str:
+    return image_data_uri(path.read_bytes(), path.suffix)
+
+
+async def _load_map_image(map_info: MapInfo | None) -> str:
+    if map_info is None:
+        return ""
+    path = await resolve_image(_map_url(map_info.slug), local_map_slug_image(map_info.slug))
+    if path is None:
+        return ""
+    return await to_thread(_read_image_uri)(path)
 
 
 def _read(source: object, *keys: str) -> object | None:
@@ -195,6 +219,13 @@ async def build_match_detail_card(room_id: str, viewer_id: str, *, region: str =
             match = await _find_viewer_match(viewer_id, room_id, region)
             if match is not None:
                 detail = _merge_match_fallback(detail, match)
+    summary = detail.get("summary")
+    map_value = _read(summary, "mapId", "map_id")
+    if map_value is None:
+        map_value = _read(detail, "mapId", "map_id")
+    map_id = map_value if isinstance(map_value, int) and not isinstance(map_value, bool) else None
+    map_info = resolve_map(map_id) if map_id is not None else None
+    map_image = await _load_map_image(map_info)
     role_images = await load_role_images(_role_ids(detail))
     return await render_match_detail_card(
         detail,
@@ -202,4 +233,5 @@ async def build_match_detail_card(room_id: str, viewer_id: str, *, region: str =
         viewer_id=viewer_id,
         region=region_label(region),
         role_images=role_images,
+        map_image=map_image,
     )
