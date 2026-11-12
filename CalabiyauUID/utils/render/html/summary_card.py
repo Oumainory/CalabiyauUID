@@ -299,7 +299,7 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
         challenge_html = (
             '<div class="rank-card-body">'
             f'<div class="rank-card-icon"><img src="{_escape(assets.challenge_icon)}" alt=""></div>'
-            f'<div><div class="rank-card-name" style="color:{challenge_color}">{_escape(challenge_name)}</div>'
+            f'<div class="rank-card-info"><div class="rank-card-name" style="color:{challenge_color}">{_escape(challenge_name)}</div>'
             f'<div class="rank-card-sub">{challenge_score} 挑战分 · 胜率 {_pct(challenge_rate)}</div></div>'
             f'<div class="rank-card-right"><b>{leisure.get("star", 0)}</b><span>星级</span></div>'
             "</div>"
@@ -398,13 +398,14 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .rank-stack{{display:flex;flex-direction:column;gap:1px;background:#e7ebf1}}
 .rank-card{{padding:12px 14px;background:#fff}}
 .rank-card-head{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;color:#7b8799;font-size:11px;white-space:nowrap}}
-.rank-card-body{{display:flex;align-items:center;gap:11px}}
+.rank-card-body{{display:flex;align-items:center;gap:10px}}
 .rank-card-icon{{width:52px;height:52px;flex:none;border-radius:50%;background:#f3f5f8;overflow:hidden}}
 .rank-card-icon img{{display:block;width:100%;height:100%;object-fit:contain}}
-.rank-card-name{{font-size:17px;font-weight:700;line-height:1.2;white-space:nowrap}}
+.rank-card-info{{flex:1;min-width:0}}
+.rank-card-name{{font-size:15px;font-weight:700;line-height:1.25}}
 .rank-card-sub{{margin-top:4px;color:#788497;font-size:11px;white-space:nowrap}}
-.rank-card-right{{margin-left:auto;text-align:right}}
-.rank-card-right b{{display:block;font-size:22px;line-height:1;color:#3c485b}}
+.rank-card-right{{flex:none;margin-left:auto;text-align:right}}
+.rank-card-right b{{display:block;font-size:18px;line-height:1.1;color:#3c485b}}
 .rank-card-right span{{display:block;margin-top:5px;color:#929cad;font-size:10px}}
 .challenge-empty{{padding:18px 14px;color:#9aa4b4;font-size:12px;text-align:center;background:#fff}}
 .baseplate{{padding:12px 14px;background:#fff;display:flex;flex-direction:column}}
@@ -468,7 +469,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
         <div class="rank-card-head"><span>排位赛 · 当前段位</span><span>{season}</span></div>
         <div class="rank-card-body">
           <div class="rank-card-icon"><img src="{tier_icon}" alt=""></div>
-          <div><div class="rank-card-name" style="color:{tier_color}">{_escape(tier_label)}</div><div class="rank-card-sub">{rank["divisionScore"]} 段位分</div></div>
+          <div class="rank-card-info"><div class="rank-card-name" style="color:{tier_color}">{_escape(tier_label)}</div><div class="rank-card-sub">{rank["divisionScore"]} 段位分</div></div>
           <div class="rank-card-right"><b>{_escape(rank_pos)}</b><span>段位排名</span></div>
         </div>
       </div>
@@ -476,7 +477,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
         <div class="rank-card-head"><span>排位赛 · 历史最高</span><span>赛季 S{rank["historicalSegmentSeason"]}</span></div>
         <div class="rank-card-body">
           <div class="rank-card-icon"><img src="{top_tier_icon}" alt=""></div>
-          <div><div class="rank-card-name" style="color:{top_color}">{_escape(top_label)}</div><div class="rank-card-sub">{rank["topDivisionScore"]} 历史段位分</div></div>
+          <div class="rank-card-info"><div class="rank-card-name" style="color:{top_color}">{_escape(top_label)}</div><div class="rank-card-sub">{rank["topDivisionScore"]} 历史段位分</div></div>
           <div class="rank-card-right"><b>{rank["historicalSegmentPos"] if rank["historicalSegmentPos"] is not None else "—"}</b><span>历史排名</span></div>
         </div>
       </div>
