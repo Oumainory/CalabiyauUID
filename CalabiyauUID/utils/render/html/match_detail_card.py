@@ -294,7 +294,7 @@ body{{width:100%;background:#eceff4;color:#172033;font-family:"MiSans","Microsof
 </style></head><body><div class="card">
 <div class="header"><div><div class="title">对局详情{viewer_note}</div><div class="room">对局编号 {_escape(room_id)}</div></div><div class="region">{_escape(region)}</div></div>
 <div class="summary"><div class="meta"><div class="mode">{_escape(mode)}</div><div class="map">{_escape(map_name)}</div><div class="summary-extra"><span class="outcome outcome-{result_tone}">{_escape(result_label)}</span><span>{_escape(played_at)}</span></div></div><div class="score">{_escape(score_label)}</div><div class="duration">时长<br>{_escape(duration)}</div></div>
-<div class="teams">{team_html}</div><div class="footer">Data by 白泉幽奈 · Dakanu</div>
+<div class="teams">{team_html}</div><div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
 
 
