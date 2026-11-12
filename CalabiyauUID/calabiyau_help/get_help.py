@@ -8,8 +8,6 @@ from PIL import Image
 from gsuid_core.help.draw_new_plugin_help import get_new_help
 from gsuid_core.help.model import PluginHelp
 
-from ..version import CalabiyauUID_version
-
 ICON = Path(__file__).parent.parent.parent / "ICON.png"
 HELP_DATA = Path(__file__).parent / "help.json"
 ICON_PATH = Path(__file__).parent / "icon_path"
@@ -32,7 +30,7 @@ def _maybe(name: str) -> Image.Image | None:
 async def get_help(pm: int):
     return await get_new_help(
         plugin_name="CalabiyauUID",
-        plugin_info={f"v{CalabiyauUID_version}": ""},
+        plugin_info={},
         plugin_icon=Image.open(ICON),
         plugin_help=plugin_help,
         plugin_prefix="kq",
