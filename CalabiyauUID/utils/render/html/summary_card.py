@@ -386,7 +386,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .trend-wrap{{display:flex;align-items:center;gap:12px;padding:8px 14px 12px}}
 .trend-chart{{width:248px;flex:none;min-width:0}}
 .trend-svg{{display:block;width:248px;height:103px}}
-.trend-side{{flex:1;min-width:0}}
+.trend-side{{flex:1;min-width:0;text-align:right}}
 .trend-kicker{{display:block;color:#8792a4;font-size:11px;margin-bottom:5px}}
 .trend-tier{{font-size:16px;font-weight:700;line-height:1.25}}
 .trend-score{{margin-top:5px;color:#596579;font-size:13px;white-space:nowrap}}
