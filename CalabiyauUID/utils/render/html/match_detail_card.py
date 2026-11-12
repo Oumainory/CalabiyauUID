@@ -228,16 +228,10 @@ def _team_html(
     max_damage: int,
     tone: str,
 ) -> str:
-    score_html = f'<span class="team-score">{score}</span>' if score is not None else ""
-    team_name = team.get("label")
-    team_name_html = (
-        f'<small>{_escape(team_name)}</small>'
-        if isinstance(team_name, str) and team_name and team_name != label
-        else ""
-    )
+    del score
     return (
         f'<section class="team team-{tone}"><div class="team-head"><div class="team-title">'
-        f'<b>{label}</b>{team_name_html}</div>{score_html}</div>'
+        f'<b>{label}</b></div></div>'
         f"{_player_rows(team, viewer_id, role_images, max_damage)}</section>"
     )
 
