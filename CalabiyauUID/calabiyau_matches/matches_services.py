@@ -6,15 +6,16 @@ from pathlib import Path
 from gsuid_core.pool import to_thread
 from gsuid_core.models import Event
 
-from ..utils.api.dakanu import DakanuError, role_image_url
+from ..utils.api.dakanu import DakanuError
 from ..utils.downloader import resolve_image
 from ..utils.helper.maps import MapInfo, resolve_map
-from ..utils.helper.assets import image_data_uri, local_role_image, local_avatar_image, local_map_slug_image
+from ..utils.helper.assets import image_data_uri, local_avatar_image, local_map_slug_image
 from ..utils.helper.player_data import (
     PlayerSnapshot,
     load_player_snapshot,
     load_or_fetch_player_snapshot,
 )
+from ..utils.helper.role_images import load_role_images as _load_role_images
 from ..utils.helper.recent_matches import MatchView, load_recent_match_views
 from ..utils.helper.resolve_player import region_label, resolve_player_query_context
 from ..utils.render.html.matches_card import MatchCardAssets, render_matches_card
@@ -84,14 +85,6 @@ async def _load_avatar_images(avatar_ids: set[int]) -> dict[int, str]:
         *(_resolve_image_uri(_avatar_url(avatar_id), local_avatar_image(avatar_id)) for avatar_id in ordered)
     )
     return {avatar_id: uri for avatar_id, uri in zip(ordered, uris, strict=True)}
-
-
-async def _load_role_images(role_ids: set[int]) -> dict[int, str]:
-    ordered = sorted(role_ids)
-    uris = await asyncio.gather(
-        *(_resolve_image_uri(role_image_url(role_id), local_role_image(role_id)) for role_id in ordered)
-    )
-    return {role_id: uri for role_id, uri in zip(ordered, uris, strict=True)}
 
 
 async def _load_map_images(map_infos: list[MapInfo]) -> dict[str, str]:
