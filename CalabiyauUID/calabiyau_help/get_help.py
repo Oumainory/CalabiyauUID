@@ -40,6 +40,7 @@ async def get_help(pm: int):
         help_bg=_maybe("bg.jpg"),
         cag_bg=_maybe("cag_bg.png"),
         item_bg=_maybe("item.png"),
+        footer=_maybe("footer.png"),
         icon_path=ICON_PATH,
         enable_cache=False,
         column=4,
