@@ -37,7 +37,7 @@ async def get_help(pm: int):
         plugin_help=plugin_help,
         plugin_prefix="kq",
         help_mode="dark",
-        banner_bg=_maybe("banner_bg.jpg"),
+        banner_bg=_maybe("banner_bg.png"),
         banner_sub_text="卡拉彼丘战绩查询与账号管理",
         help_bg=_maybe("bg.jpg"),
         cag_bg=_maybe("cag_bg.png"),
