@@ -5,7 +5,7 @@
     <img src="ICON.png" width="162" height="162" alt="CalabiyauUID">
   </a>
 </p>
-<h1 align="center">CalabiyauUID 0.1.0</h1>
+<h1 align="center">CalabiyauUID</h1>
 <h4 align="center">基于 gsuid_core 的 全功能卡拉彼丘插件</h4>
 
 <p align="center">
