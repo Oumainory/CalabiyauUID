@@ -18,6 +18,22 @@
   <a href="https://github.com/Genshin-bots/gsuid_core" target="_blank">gsuid_core</a>
 </div>
 
+## 丨关于本仓库
+
+本仓库是 [sssysy/CalabiyauUID](https://github.com/sssysy/CalabiyauUID) 的修改版，基于原作者的 `b6eb773` 版本继续补全功能，并沿用 GPL-3.0 许可证。插件的原始设计与代码版权归原作者 [sssysy](https://github.com/sssysy) 所有。
+
+主要改动：
+
+- 新增 `kq切换`：在已绑定账号间切换，可指定 UID，也可按顺序切到下一个
+- 新增 `kq帮助`：按早柚插件通用风格生成的命令帮助图
+- `kq绑定`、`kq战绩总览`、`kq历史战绩`、`kq刷新数据` 支持用昵称查询（精确匹配优先，其次前缀匹配，有重名时列出候选）
+- 战绩总览卡新增「常组队友」和「常遇对手」，没有数据时不显示
+- 请求 dakanu 时带上常见浏览器请求头，避免被识别为自动化请求而返回 429
+- 增加搜索缓存（约 10 分钟）、档案缓存（约 90 秒），超时或 5xx 时重试一次
+- 指定玩家查询时，本地没有快照会先读取站点缓存
+- 修复刷新接口返回 HTTP 202（已受理）时被误判为失败，导致绑定提示「暂时没有读到玩家缓存」
+- 修复帮助图示例重复显示 `kq` 前缀
+
 ## 丨安装提醒
 
 > **注意：该插件为 [早柚核心(gsuid_core)](https://github.com/Genshin-bots/gsuid_core) 的扩展，具体安装方式可参考上方安装文档**
@@ -56,6 +72,8 @@
 ## 致谢
 | 贡献者 | 引用 |
 |:------:|:------:|
+| [sssysy](https://github.com/sssysy) | 原插件作者，[CalabiyauUID](https://github.com/sssysy/CalabiyauUID) |
+| [CSAHuan](https://github.com/CSAHuan) | 功能参考，[dsh-klbq](https://github.com/CSAHuan/dsh-klbq) |
 | [Wuyi 无疑](https://github.com/KimigaiiWuyi) | 框架作者 |
 | [gsuid_core](https://github.com/Genshin-bots/gsuid_core) | 插件依赖框架 |
 | [dakanu](https://www.dakanu.com/) | 数据查询接口 |
