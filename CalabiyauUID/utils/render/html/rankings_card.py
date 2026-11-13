@@ -216,8 +216,8 @@ def render_rankings_html(
 body{{width:100%;background:radial-gradient(ellipse at 12% 0%,rgba(115,156,210,.2),transparent 35%),radial-gradient(ellipse at 92% 18%,rgba(236,195,135,.15),transparent 28%),linear-gradient(145deg,#e4ebf4 0%,#d9e3ef 48%,#e8edf4 100%);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
 .card{{width:100%;padding:20px 24px 12px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.84))}}
 .header{{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:104px;margin-bottom:13px;padding:17px 19px;overflow:hidden;border:1px solid rgba(255,255,255,.82);border-radius:14px;background:linear-gradient(120deg,#dbe5ef,#cbd8e6 55%,#e8e2d9);box-shadow:0 8px 22px rgba(39,55,80,.11)}}
-.banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 48%;opacity:.9}}
-.banner-veil{{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(245,248,252,.9) 0%,rgba(245,248,252,.66) 46%,rgba(245,248,252,.42) 100%)}}
+.banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 48%;opacity:.96}}
+.banner-veil{{position:absolute;left:0;top:0;bottom:0;z-index:-1;width:47%;max-width:400px;background:linear-gradient(90deg,rgba(245,248,252,.9) 0%,rgba(245,248,252,.78) 60%,rgba(245,248,252,0) 100%)}}
 .title{{font-size:23px;font-weight:750;color:#263247}}
 .sub{{margin-top:5px;color:#536375;font-size:11px}}
 .region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.9);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(40,70,110,.08)}}

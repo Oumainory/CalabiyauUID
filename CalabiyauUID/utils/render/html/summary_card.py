@@ -148,9 +148,9 @@ def render_empty_summary_html(message: str, map_image: str = "") -> str:
 body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 12% 0%,rgba(109,153,208,.2),transparent 36%),radial-gradient(ellipse at 92% 20%,rgba(232,189,131,.14),transparent 28%),linear-gradient(145deg,#e3eaf3,#d8e2ee 52%,#e9edf3);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
 .empty-card{{width:100%;padding:24px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
 .empty-hero{{position:relative;isolation:isolate;display:flex;min-height:230px;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(255,255,255,.86);border-radius:16px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1);text-align:center}}
-.empty-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 44%;opacity:.86}}
-.empty-veil{{position:absolute;inset:0;z-index:-1;background:rgba(245,248,252,.66)}}
-.empty-content{{position:relative;padding:28px 24px}}
+.empty-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 44%;opacity:.96}}
+.empty-veil{{position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at center,rgba(245,248,252,.2) 0%,rgba(245,248,252,.08) 32%,rgba(245,248,252,0) 62%)}}
+.empty-content{{position:relative;width:calc(100% - 48px);max-width:560px;padding:20px 24px;border:1px solid rgba(255,255,255,.9);border-radius:14px;background:rgba(248,250,253,.88);box-shadow:0 8px 22px rgba(39,55,80,.14)}}
 .empty-title{{font-size:22px;font-weight:700;color:#263247}}
 .empty-text{{max-width:620px;margin:12px auto 0;font-size:15px;line-height:1.6;color:#64748a;white-space:pre-wrap}}
 .empty-footer{{padding-top:17px;color:#78869a;font-size:10px;text-align:center}}
