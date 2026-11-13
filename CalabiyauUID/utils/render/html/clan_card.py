@@ -121,6 +121,7 @@ def render_clan_html(
     *,
     region: str,
     avatar_images: Mapping[int, str] | None = None,
+    banner_image: str = "",
 ) -> str:
     name = clan.get("name") or "未命名战队"
     clan_id = clan.get("clanId") or clan.get("id") or "—"
@@ -131,26 +132,29 @@ def render_clan_html(
     recruit_html = "".join(f'<span class="tag">{_escape(item)}</span>' for item in extra)
     count_label = _count_label(clan, members)
     images = avatar_images or {}
+    banner_html = f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>战队查询</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;background:#e9eef4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
-.card{{width:100%;padding:22px 24px 12px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef4 100%)}}
-.header{{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:4px 2px 14px}}
+body{{width:100%;background:radial-gradient(ellipse at 8% 0%,rgba(109,153,208,.2),transparent 36%),radial-gradient(ellipse at 92% 20%,rgba(232,189,131,.14),transparent 28%),linear-gradient(145deg,#e3eaf3,#d8e2ee 52%,#e9edf3);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
+.card{{width:100%;padding:20px 24px 12px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
+.header{{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:124px;margin-bottom:13px;padding:20px;overflow:hidden;border:1px solid rgba(255,255,255,.84);border-radius:14px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1)}}
+.banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 48%;opacity:.9}}
+.header::after{{position:absolute;inset:0;z-index:-1;content:"";background:linear-gradient(90deg,rgba(249,251,253,.9),rgba(245,248,252,.75) 64%,rgba(235,241,248,.62))}}
 .title{{color:#263247;font-size:23px;font-weight:750;line-height:1.2;overflow-wrap:anywhere}}
-.id{{margin-top:5px;color:#8994a6;font:10px "Mono",monospace}}
-.region{{padding:5px 9px;border-radius:7px;background:#edf3ff;color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
-.overview{{padding:14px 16px;border:1px solid #d5deea;border-radius:14px;background:linear-gradient(145deg,#f8fafc 0%,#eef3f8 100%);box-shadow:0 8px 24px rgba(39,55,80,.06)}}
+.id{{margin-top:6px;color:#66768b;font:10px "Mono",monospace}}
+.region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.92);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
+.overview{{padding:14px 16px;border:1px solid #cad6e4;border-radius:14px;background:linear-gradient(145deg,rgba(247,250,253,.86),rgba(221,231,241,.78));box-shadow:0 8px 24px rgba(39,55,80,.08)}}
 .stats{{display:flex;gap:10px;margin-bottom:10px}}
 .stat{{display:flex;align-items:baseline;gap:5px;padding:6px 9px;border:1px solid #dfe6ef;border-radius:8px;background:rgba(255,255,255,.52);color:#748297;font-size:9px}}
 .stat b{{color:#354258;font-size:14px;font-variant-numeric:tabular-nums}}
 .intro{{padding-top:10px;border-top:1px solid #e0e7ef;color:#566379;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}}
 .tags{{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}}.tag{{padding:4px 7px;border-radius:6px;background:#fff3e8;color:#a76222;font-size:9px}}
-.members{{overflow:hidden;margin-top:12px;border:1px solid #d5deea;border-radius:14px;background:linear-gradient(155deg,#f7f9fc 0%,#edf2f7 100%);box-shadow:0 8px 24px rgba(39,55,80,.06)}}
+.members{{overflow:hidden;margin-top:12px;border:1px solid #cad6e4;border-radius:14px;background:linear-gradient(155deg,rgba(246,249,252,.84),rgba(219,229,239,.78));box-shadow:0 8px 24px rgba(39,55,80,.08)}}
 .members-head{{display:flex;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #e1e7ef;color:#344156;font-size:13px;font-weight:700}}
 .members-head span{{color:#8491a3;font-size:9px;font-weight:400}}
-.member{{display:flex;align-items:center;gap:10px;min-height:42px;padding:5px 13px;border-bottom:1px solid #e4eaf1;background:rgba(255,255,255,.2)}}
-.member:nth-child(even){{background:rgba(220,230,242,.24)}}.member:last-child{{border-bottom:0}}
+.member{{display:flex;align-items:center;gap:10px;min-height:42px;padding:5px 13px;border-bottom:1px solid rgba(202,214,228,.82);background:rgba(255,255,255,.39)}}
+.member:nth-child(even){{background:rgba(218,229,241,.4)}}.member:last-child{{border-bottom:0}}
 .member-avatar{{display:flex;width:31px;height:31px;flex:none;align-items:center;justify-content:center;overflow:hidden;border:2px solid rgba(255,255,255,.9);border-radius:50%;background:#dce5ef;color:#53657b;font-size:11px;font-weight:700;box-shadow:0 2px 5px rgba(40,56,78,.12)}}
 .member-avatar img{{display:block;width:100%;height:100%;object-fit:cover}}
 .member-name{{display:flex;flex:1;align-items:center;gap:7px;min-width:0;overflow:hidden;color:#344156;font-size:11px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}}
@@ -159,7 +163,7 @@ body{{width:100%;background:#e9eef4;color:#172033;font-family:"MiSans","Microsof
 .empty{{padding:24px;color:#7f8da1;text-align:center;font-size:12px}}
 .footer{{padding-top:10px;color:#78869a;font-size:10px;text-align:center}}
 </style></head><body><div class="card">
-<div class="header"><div><div class="title">{_escape(name)}</div><div class="id">战队 ID {_escape(clan_id)}</div></div><div class="region">{_escape(region)}</div></div>
+<div class="header">{banner_html}<div><div class="title">{_escape(name)}</div><div class="id">战队 ID {_escape(clan_id)}</div></div><div class="region">{_escape(region)}</div></div>
 <div class="overview"><div class="stats"><span class="stat">等级 <b>{_escape(level_text)}</b></span><span class="stat">成员 <b>{_escape(count_label)}</b></span></div>
 <div class="intro">{_escape(intro)}</div><div class="tags">{recruit_html}</div></div>
 <div class="members"><div class="members-head">成员列表<span>最多展示 32 位</span></div>{_members_html(members, images)}</div>
@@ -172,9 +176,16 @@ async def render_clan_card(
     *,
     region: str,
     avatar_images: Mapping[int, str] | None = None,
+    banner_image: str = "",
 ) -> bytes:
     return await render_html_to_bytes(
-        render_clan_html(clan, members, region=region, avatar_images=avatar_images),
+        render_clan_html(
+            clan,
+            members,
+            region=region,
+            avatar_images=avatar_images,
+            banner_image=banner_image,
+        ),
         max_width=1520,
         dpi=192,
         root_max_width=_CARD_WIDTH,

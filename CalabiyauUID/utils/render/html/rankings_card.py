@@ -161,8 +161,10 @@ def _entry_html(
     role_html = (
         f'<span class="role-image"><img src="{_escape(role_image)}" alt=""></span>' if role_image else ""
     )
+    art_html = f'<img class="entry-art" src="{_escape(role_image)}" alt="">' if position <= 3 and role_image else ""
     return (
         f'<article class="entry rank-{position if position <= 3 else "other"}">'
+        f'{art_html}'
         f'<span class="position">{position:02d}</span>{avatar}'
         f'<div class="identity"><div class="nickname">{_escape(nickname)}{level_html}</div>'
         f'<div class="role">{role_html}<span>{_escape(role_name)}</span></div></div>'
@@ -180,6 +182,7 @@ def render_rankings_html(
     ranking_type: int = 1,
     avatar_images: Mapping[int, str] | None = None,
     role_images: Mapping[int, str] | None = None,
+    banner_image: str = "",
 ) -> str:
     entries = payload.get("entries")
     visible_entries = entries[:20] if isinstance(entries, list) else []
@@ -206,18 +209,26 @@ def render_rankings_html(
     total = _int(payload.get("total"))
     if total is None:
         total = len(entries) if isinstance(entries, list) else 0
+    banner_html = f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>排行榜</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;background:#e9eef4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
-.card{{width:100%;padding:22px 24px 12px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef4 100%)}}
-.header{{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:4px 2px 14px}}
+body{{width:100%;background:radial-gradient(ellipse at 12% 0%,rgba(115,156,210,.2),transparent 35%),radial-gradient(ellipse at 92% 18%,rgba(236,195,135,.15),transparent 28%),linear-gradient(145deg,#e4ebf4 0%,#d9e3ef 48%,#e8edf4 100%);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
+.card{{width:100%;padding:20px 24px 12px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.84))}}
+.header{{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:104px;margin-bottom:13px;padding:17px 19px;overflow:hidden;border:1px solid rgba(255,255,255,.82);border-radius:14px;background:linear-gradient(120deg,#dbe5ef,#cbd8e6 55%,#e8e2d9);box-shadow:0 8px 22px rgba(39,55,80,.11)}}
+.banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 48%;opacity:.9}}
+.header::after{{position:absolute;inset:0;z-index:-1;content:"";background:linear-gradient(90deg,rgba(249,251,253,.91) 0%,rgba(245,248,252,.78) 53%,rgba(235,241,248,.68) 100%)}}
 .title{{font-size:23px;font-weight:750;color:#263247}}
-.sub{{margin-top:5px;color:#77869b;font-size:11px}}
-.region{{padding:5px 9px;border-radius:7px;background:#edf3ff;color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
-.list{{overflow:hidden;border:1px solid #d5deea;border-radius:14px;background:linear-gradient(155deg,#f7f9fc 0%,#edf2f7 100%);box-shadow:0 8px 24px rgba(39,55,80,.07)}}
-.entry{{display:flex;align-items:center;gap:9px;min-height:53px;padding:6px 11px;border-bottom:1px solid #e3e9f0;background:rgba(255,255,255,.24)}}
-.entry:nth-child(even){{background:rgba(220,230,242,.28)}}.entry:last-child{{border-bottom:0}}
+.sub{{margin-top:5px;color:#66768b;font-size:11px}}
+.region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.9);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(40,70,110,.08)}}
+.list{{overflow:hidden;border:1px solid #cbd6e3;border-radius:14px;background:linear-gradient(155deg,rgba(245,248,252,.82),rgba(218,228,239,.72));box-shadow:0 8px 24px rgba(39,55,80,.1)}}
+.entry{{position:relative;isolation:isolate;display:flex;align-items:center;gap:9px;min-height:53px;padding:6px 11px;border-bottom:1px solid rgba(202,214,228,.8);background:rgba(255,255,255,.38);overflow:hidden}}
+.entry:nth-child(even){{background:rgba(218,229,241,.4)}}.entry:last-child{{border-bottom:0}}
+.entry-art{{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;opacity:.76}}
+.entry::before{{position:absolute;inset:0;z-index:1;content:"";background:rgba(245,248,252,.72)}}
+.entry.rank-1{{min-height:64px;box-shadow:inset 4px 0 #d5aa49}}.entry.rank-2{{min-height:62px;box-shadow:inset 4px 0 #9da9b8}}.entry.rank-3{{min-height:60px;box-shadow:inset 4px 0 #bd805c}}
+.entry.rank-1::before{{background:rgba(255,250,232,.69)}}.entry.rank-2::before{{background:rgba(246,248,251,.72)}}.entry.rank-3::before{{background:rgba(255,243,235,.7)}}
+.entry>*:not(.entry-art){{position:relative;z-index:2}}
 .position{{width:28px;flex:none;color:#77869b;font:700 14px "Mono",monospace;text-align:center}}
 .rank-1 .position{{color:#bd8728}}.rank-2 .position{{color:#7c8797}}.rank-3 .position{{color:#a96b4d}}
 .avatar{{display:flex;width:37px;height:37px;flex:none;align-items:center;justify-content:center;overflow:hidden;border:2px solid rgba(255,255,255,.9);border-radius:50%;background:#dce5ef;color:#53657b;font-size:13px;font-weight:700;box-shadow:0 2px 6px rgba(40,56,78,.14)}}
@@ -242,7 +253,7 @@ body{{width:100%;background:#e9eef4;color:#172033;font-family:"MiSans","Microsof
 .empty{{padding:42px 18px;color:#7f8da1;text-align:center;font-size:13px}}
 .footer{{padding-top:10px;color:#78869a;font-size:10px;text-align:center}}
 </style></head><body><div class="card">
-<div class="header"><div><div class="title">{_escape(display_title)}</div><div class="sub">{_escape(season)} · 前 {len(visible_entries)} 名 / 共 {total} 位 · {len(visible_entries)} 条榜单记录</div></div><div class="region">{_escape(region)}</div></div>
+<div class="header">{banner_html}<div><div class="title">{_escape(display_title)}</div><div class="sub">{_escape(season)} · 前 {len(visible_entries)} 名 / 共 {total} 位 · {len(visible_entries)} 条榜单记录</div></div><div class="region">{_escape(region)}</div></div>
 <div class="list">{rows}</div><div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
 
@@ -256,6 +267,7 @@ async def render_rankings_card(
     ranking_type: int = 1,
     avatar_images: Mapping[int, str] | None = None,
     role_images: Mapping[int, str] | None = None,
+    banner_image: str = "",
 ) -> bytes:
     return await render_html_to_bytes(
         render_rankings_html(
@@ -266,6 +278,7 @@ async def render_rankings_card(
             ranking_type=ranking_type,
             avatar_images=avatar_images,
             role_images=role_images,
+            banner_image=banner_image,
         ),
         max_width=1520,
         dpi=192,

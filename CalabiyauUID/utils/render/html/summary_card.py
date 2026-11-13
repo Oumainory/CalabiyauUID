@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from gsuid_core.utils.html_render import render_html_to_bytes
 
 from ...api.dakanu import DakanuMode, DakanuRole, DakanuMatch, DakanuLeisure, DakanuProfile, DakanuSummary
+from ...helper.map_images import load_map_images
 
 _CARD_WIDTH = 760
 _TREND_POINTS = 12
@@ -135,27 +136,35 @@ def _trend_svg(matches: list[DakanuMatch]) -> str:
     )
 
 
-def render_empty_summary_html(message: str) -> str:
+def render_empty_summary_html(message: str, map_image: str = "") -> str:
     """没有本地战绩时显示的最小卡片，避免输出空图片。"""
+    image_html = f'<img class="empty-art" src="{_escape(map_image)}" alt="">' if map_image else ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8">
 <title>战绩总览</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
-.empty-card{{width:100%;padding:38px 32px 16px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef4 100%);text-align:center}}
+body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 12% 0%,rgba(109,153,208,.2),transparent 36%),radial-gradient(ellipse at 92% 20%,rgba(232,189,131,.14),transparent 28%),linear-gradient(145deg,#e3eaf3,#d8e2ee 52%,#e9edf3);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
+.empty-card{{width:100%;padding:24px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
+.empty-hero{{position:relative;isolation:isolate;display:flex;min-height:230px;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(255,255,255,.86);border-radius:16px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1);text-align:center}}
+.empty-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 44%;opacity:.86}}
+.empty-hero::after{{position:absolute;inset:0;z-index:-1;content:"";background:rgba(245,248,252,.74)}}
+.empty-content{{position:relative;padding:28px 24px}}
 .empty-title{{font-size:22px;font-weight:700;color:#263247}}
-.empty-text{{margin-top:12px;font-size:15px;line-height:1.6;color:#7c8799;white-space:pre-wrap}}
-.empty-footer{{padding-top:28px;color:#78869a;font-size:10px}}
+.empty-text{{max-width:620px;margin:12px auto 0;font-size:15px;line-height:1.6;color:#64748a;white-space:pre-wrap}}
+.empty-footer{{padding-top:17px;color:#78869a;font-size:10px;text-align:center}}
 </style></head>
-<body><div class="empty-card"><div class="empty-title">还没有战绩数据</div><div class="empty-text">{_escape(message)}</div>
+<body><div class="empty-card"><div class="empty-hero">{image_html}<div class="empty-content"><div class="empty-title">还没有战绩数据</div><div class="empty-text">{_escape(message)}</div></div></div>
 <div class="empty-footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div></div></body></html>"""
 
 
-async def render_empty_summary_card(message: str) -> bytes:
+async def render_empty_summary_card(message: str, map_image: str = "") -> bytes:
+    if not map_image:
+        map_images = await load_map_images({"map-01"})
+        map_image = map_images.get("map-01", "")
     return await render_html_to_bytes(
-        render_empty_summary_html(message),
+        render_empty_summary_html(message, map_image),
         max_width=1520,
         dpi=192,
         root_max_width=_CARD_WIDTH,
@@ -403,10 +412,10 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
 <title>战绩总览</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
-.card{{width:100%;padding:24px 24px 0;background:linear-gradient(135deg,#f8fafc 0%,#e8edf4 55%,#dfe7f2 100%)}}
+body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba(102,151,213,.2),transparent 34%),radial-gradient(ellipse at 95% 14%,rgba(233,190,128,.17),transparent 30%),linear-gradient(145deg,#e0e8f2 0%,#d4dfec 48%,#e7ecf3 100%);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
+.card{{width:100%;padding:24px 24px 0;background:repeating-linear-gradient(135deg,rgba(95,123,158,.028) 0,rgba(95,123,158,.028) 1px,transparent 1px,transparent 9px),radial-gradient(ellipse at 18% 0%,rgba(255,255,255,.62),transparent 42%),linear-gradient(145deg,rgba(245,248,252,.78),rgba(216,227,240,.76))}}
 .top{{display:flex;gap:18px;align-items:flex-start}}
-.identity{{width:252px;flex:none;align-self:flex-start;display:flex;flex-direction:column;background:#fff;border:1px solid #dce3ec;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(39,55,80,.08)}}
+.identity{{width:252px;flex:none;align-self:flex-start;display:flex;flex-direction:column;background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.9);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(39,55,80,.1)}}
 .identity-main{{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:16px;border-bottom:1px solid #e4e9f0}}
 .identity-row{{display:flex;gap:10px;align-items:center;margin-top:6px}}
 .avatar{{width:76px;height:76px;flex:none;border-radius:50%;overflow:hidden;background:#eef2f7;border:2px solid #fff;box-shadow:0 0 0 2px #e2e8f1}}
@@ -438,7 +447,7 @@ body{{width:100%;min-height:1px;background:#eceff4;color:#172033;font-family:"Mi
 .rank-pos span{{display:block;margin-top:6px;font-size:11px;color:#8b96a8}}
 .rank-foot{{display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid #edf0f5;font-size:12px;color:#7d899b}}
 .main{{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}}
-.panel{{background:#fff;border:1px solid #dce3ec;border-radius:16px;box-shadow:0 8px 24px rgba(39,55,80,.07);overflow:hidden}}
+.panel{{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 8px 24px rgba(39,55,80,.09);overflow:hidden}}
 .panel-head{{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #edf0f5}}
 .panel-title{{font-size:15px;font-weight:700;color:#263247}}
 .panel-note{{font-size:12px;color:#8994a6}}

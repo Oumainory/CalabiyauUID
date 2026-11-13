@@ -67,23 +67,31 @@ def _rows(entries: object, avatar_images: Mapping[int, str]) -> str:
 
 
 def render_friends_html(
-    payload: dict[str, object], *, region: str, avatar_images: Mapping[int, str] | None = None
+    payload: dict[str, object],
+    *,
+    region: str,
+    avatar_images: Mapping[int, str] | None = None,
+    banner_image: str = "",
 ) -> str:
     entries = payload.get("entries")
     total = _number(payload.get("total"))
     total = total if total is not None else len(entries) if isinstance(entries, list) else 0
     images = avatar_images or {}
+    banner_html = f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>好友榜</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;background:#e9eef4;color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
-.card{{width:100%;padding:22px 24px 12px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef4 100%)}}
-.header{{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:4px 2px 14px}}
-.title{{font-size:23px;font-weight:750;color:#263247}}.note{{margin-top:5px;color:#77869b;font-size:11px}}
-.region{{padding:5px 9px;border-radius:7px;background:#edf3ff;color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
-.list{{overflow:hidden;border:1px solid #d5deea;border-radius:14px;background:linear-gradient(155deg,#f7f9fc 0%,#edf2f7 100%);box-shadow:0 8px 24px rgba(39,55,80,.07)}}
-.entry{{display:flex;align-items:center;gap:9px;min-height:65px;padding:7px 11px;border-bottom:1px solid #e3e9f0;background:rgba(255,255,255,.24)}}
-.entry:nth-child(even){{background:rgba(220,230,242,.28)}}.entry:last-child{{border-bottom:0}}
+body{{width:100%;background:radial-gradient(ellipse at 8% 0%,rgba(109,153,208,.2),transparent 36%),radial-gradient(ellipse at 92% 20%,rgba(232,189,131,.14),transparent 28%),linear-gradient(145deg,#e3eaf3,#d8e2ee 52%,#e9edf3);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif}}
+.card{{width:100%;padding:20px 24px 12px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
+.header{{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:104px;margin-bottom:13px;padding:17px 19px;overflow:hidden;border:1px solid rgba(255,255,255,.84);border-radius:14px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1)}}
+.banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 48%;opacity:.9}}
+.header::after{{position:absolute;inset:0;z-index:-1;content:"";background:linear-gradient(90deg,rgba(249,251,253,.91),rgba(245,248,252,.76) 62%,rgba(235,241,248,.64))}}
+.title{{font-size:23px;font-weight:750;color:#263247}}.note{{margin-top:5px;color:#66768b;font-size:11px}}
+.region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.92);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
+.list{{overflow:hidden;border:1px solid #cbd6e3;border-radius:14px;background:linear-gradient(155deg,rgba(245,248,252,.82),rgba(218,228,239,.72));box-shadow:0 8px 24px rgba(39,55,80,.1)}}
+.entry{{position:relative;display:flex;align-items:center;gap:9px;min-height:65px;padding:7px 11px;border-bottom:1px solid rgba(202,214,228,.82);background:rgba(255,255,255,.39)}}
+.entry:nth-child(even){{background:rgba(218,229,241,.4)}}.entry:last-child{{border-bottom:0}}
+.entry.rank-1{{min-height:71px;box-shadow:inset 4px 0 #d5aa49;background:rgba(255,250,232,.73)}}.entry.rank-2{{min-height:69px;box-shadow:inset 4px 0 #9da9b8;background:rgba(246,248,251,.76)}}.entry.rank-3{{min-height:67px;box-shadow:inset 4px 0 #bd805c;background:rgba(255,243,235,.74)}}
 .pos{{width:28px;flex:none;color:#77869b;font:700 14px "Mono",monospace;text-align:center}}
 .rank-1 .pos{{color:#bd8728}}.rank-2 .pos{{color:#7c8797}}.rank-3 .pos{{color:#a96b4d}}
 .duo{{display:flex;flex:1;align-items:center;gap:7px;min-width:0}}
@@ -104,16 +112,20 @@ body{{width:100%;background:#e9eef4;color:#172033;font-family:"MiSans","Microsof
 .empty{{padding:42px 18px;color:#7f8da1;text-align:center;font-size:13px}}
 .footer{{padding-top:10px;color:#78869a;font-size:10px;text-align:center}}
 </style></head><body><div class="card">
-<div class="header"><div><div class="title">好友榜</div><div class="note">全服组队组合 · 至少一起玩 10 场 · 按场次排序 · 共 {total} 组</div></div><div class="region">{_escape(region)}</div></div>
+<div class="header">{banner_html}<div><div class="title">好友榜</div><div class="note">全服组队组合 · 至少一起玩 10 场 · 按场次排序 · 共 {total} 组</div></div><div class="region">{_escape(region)}</div></div>
 <div class="list">{_rows(entries, images)}</div><div class="footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div>
 </div></body></html>"""
 
 
 async def render_friends_card(
-    payload: dict[str, object], *, region: str, avatar_images: Mapping[int, str] | None = None
+    payload: dict[str, object],
+    *,
+    region: str,
+    avatar_images: Mapping[int, str] | None = None,
+    banner_image: str = "",
 ) -> bytes:
     return await render_html_to_bytes(
-        render_friends_html(payload, region=region, avatar_images=avatar_images),
+        render_friends_html(payload, region=region, avatar_images=avatar_images, banner_image=banner_image),
         max_width=1520,
         dpi=192,
         root_max_width=_CARD_WIDTH,

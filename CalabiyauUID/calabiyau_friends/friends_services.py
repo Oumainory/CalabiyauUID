@@ -1,6 +1,9 @@
 """好友榜查询与卡片编排。"""
 
+import asyncio
+
 from ..utils.api.dakanu import DakanuError, fetch_friend_ranking
+from ..utils.helper.map_images import load_map_images
 from ..utils.helper.player_images import load_avatar_images
 from ..utils.helper.resolve_player import region_label, parse_region_keyword
 from ..utils.render.html.friends_card import render_friends_card
@@ -24,5 +27,13 @@ async def build_friends_card(raw_text: str) -> bytes:
     if query:
         raise DakanuError("用法：kq好友榜 [国际服]")
     payload = await fetch_friend_ranking(page=1, page_size=20, region=region)
-    avatar_images = await load_avatar_images(_avatar_ids(payload))
-    return await render_friends_card(payload, region=region_label(region), avatar_images=avatar_images)
+    avatar_images, map_images = await asyncio.gather(
+        load_avatar_images(_avatar_ids(payload)),
+        load_map_images({"map-08"}),
+    )
+    return await render_friends_card(
+        payload,
+        region=region_label(region),
+        avatar_images=avatar_images,
+        banner_image=map_images.get("map-08", ""),
+    )

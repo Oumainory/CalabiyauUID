@@ -1,6 +1,10 @@
 """超弦体排行查询与卡片编排。"""
 
+import asyncio
+
 from ..utils.api.dakanu import DakanuError, fetch_role_ranking
+from ..utils.helper.maps import resolve_map
+from ..utils.helper.map_images import load_map_images
 from ..utils.helper.role_images import load_role_images
 from ..utils.helper.resolve_player import region_label, parse_region_keyword
 from ..utils.render.html.roles_card import render_roles_card
@@ -30,6 +34,20 @@ def _role_ids(payload: dict[str, object]) -> set[int]:
     return role_ids
 
 
+def _map_slugs(payload: dict[str, object]) -> set[str]:
+    slugs = {"map-13"}
+    map_stats = payload.get("mapStats")
+    for map_stat in map_stats if isinstance(map_stats, list) else []:
+        if not isinstance(map_stat, dict):
+            continue
+        map_id = map_stat.get("mapId")
+        if isinstance(map_id, int) and not isinstance(map_id, bool):
+            map_info = resolve_map(map_id)
+            if map_info is not None:
+                slugs.add(map_info.slug)
+    return slugs
+
+
 async def build_roles_card(raw_text: str) -> bytes:
     query, region = parse_region_keyword(raw_text)
     tokens = query.split()
@@ -45,10 +63,15 @@ async def build_roles_card(raw_text: str) -> bytes:
     if remaining:
         raise DakanuError("用法：kq角色排行 [排位/全模式] [国际服]")
     payload = await fetch_role_ranking(ranked_only=ranked_only, region=region)
-    role_images = await load_role_images(_role_ids(payload))
+    role_images, map_images = await asyncio.gather(
+        load_role_images(_role_ids(payload)),
+        load_map_images(_map_slugs(payload)),
+    )
     return await render_roles_card(
         payload,
         region=region_label(region),
         ranked_only=ranked_only,
         role_images=role_images,
+        map_images=map_images,
+        banner_image=map_images.get("map-13", ""),
     )

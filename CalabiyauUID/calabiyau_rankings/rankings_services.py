@@ -4,6 +4,7 @@ import re
 import asyncio
 
 from ..utils.api.dakanu import DakanuError, fetch_rankings, fetch_ranking_types, fetch_ranking_seasons
+from ..utils.helper.map_images import load_map_images
 from ..utils.helper.role_images import load_role_images
 from ..utils.helper.player_images import load_avatar_images
 from ..utils.helper.resolve_player import region_label, parse_region_keyword
@@ -15,6 +16,13 @@ RANK_TYPES = {
     "极限推进榜": 6,
     "挑战榜": 7,
     "晶源感染榜": 8,
+}
+_RANKING_MAPS = {
+    1: "map-01",
+    2: "map-08",
+    6: "map-13",
+    7: "map-05",
+    8: "map-16",
 }
 
 
@@ -108,9 +116,11 @@ async def build_rankings_card(raw_text: str, *, forced_type: int | None = None) 
         region=region,
     )
     avatar_ids, role_ids = _asset_ids(payload)
-    avatar_images, role_images = await asyncio.gather(
+    banner_slug = _RANKING_MAPS.get(selected_type, "map-01")
+    avatar_images, role_images, map_images = await asyncio.gather(
         load_avatar_images(avatar_ids),
         load_role_images(role_ids),
+        load_map_images({banner_slug}),
     )
     return await render_rankings_card(
         payload,
@@ -120,4 +130,5 @@ async def build_rankings_card(raw_text: str, *, forced_type: int | None = None) 
         ranking_type=selected_type,
         avatar_images=avatar_images,
         role_images=role_images,
+        banner_image=map_images.get(banner_slug, ""),
     )

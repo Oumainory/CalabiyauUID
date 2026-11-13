@@ -1,6 +1,9 @@
 """战队搜索、成员读取与卡片编排。"""
 
+import asyncio
+
 from ..utils.api.dakanu import DakanuError, search_clans, fetch_clan_members
+from ..utils.helper.map_images import load_map_images
 from ..utils.helper.player_images import load_avatar_images
 from ..utils.helper.resolve_player import region_label, parse_region_keyword
 from ..utils.render.html.clan_card import render_clan_card
@@ -71,10 +74,14 @@ async def build_clan_card(raw_text: str) -> bytes:
     clan = matches[0]
     clan_id = clan.get("clanId") or clan.get("id")
     members = await fetch_clan_members(str(clan_id), region=region) if clan_id else None
-    avatar_images = await load_avatar_images(_member_avatar_ids(members))
+    avatar_images, map_images = await asyncio.gather(
+        load_avatar_images(_member_avatar_ids(members)),
+        load_map_images({"map-01"}),
+    )
     return await render_clan_card(
         clan,
         members,
         region=region_label(region),
         avatar_images=avatar_images,
+        banner_image=map_images.get("map-01", ""),
     )
