@@ -132,7 +132,7 @@ def render_clan_html(
     recruit_html = "".join(f'<span class="tag">{_escape(item)}</span>' for item in extra)
     count_label = _count_label(clan, members)
     images = avatar_images or {}
-    banner_html = f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else ""
+    banner_html = (f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else "") + '<div class="banner-veil"></div>'
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>战队查询</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
@@ -140,7 +140,7 @@ body{{width:100%;background:radial-gradient(ellipse at 8% 0%,rgba(109,153,208,.2
 .card{{width:100%;padding:20px 24px 12px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
 .header{{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:124px;margin-bottom:13px;padding:20px;overflow:hidden;border:1px solid rgba(255,255,255,.84);border-radius:14px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1)}}
 .banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 48%;opacity:.9}}
-.header::after{{position:absolute;inset:0;z-index:-1;content:"";background:linear-gradient(90deg,rgba(249,251,253,.9),rgba(245,248,252,.75) 64%,rgba(235,241,248,.62))}}
+.banner-veil{{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(245,248,252,.9) 0%,rgba(245,248,252,.66) 46%,rgba(245,248,252,.42) 100%)}}
 .title{{color:#263247;font-size:23px;font-weight:750;line-height:1.2;overflow-wrap:anywhere}}
 .id{{margin-top:6px;color:#66768b;font:10px "Mono",monospace}}
 .region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.92);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}

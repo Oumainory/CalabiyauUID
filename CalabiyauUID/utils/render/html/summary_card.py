@@ -138,7 +138,7 @@ def _trend_svg(matches: list[DakanuMatch]) -> str:
 
 def render_empty_summary_html(message: str, map_image: str = "") -> str:
     """没有本地战绩时显示的最小卡片，避免输出空图片。"""
-    image_html = f'<img class="empty-art" src="{_escape(map_image)}" alt="">' if map_image else ""
+    image_html = (f'<img class="empty-art" src="{_escape(map_image)}" alt="">' if map_image else "") + '<div class="empty-veil"></div>'
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8">
@@ -149,7 +149,7 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 12% 0%,rgb
 .empty-card{{width:100%;padding:24px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
 .empty-hero{{position:relative;isolation:isolate;display:flex;min-height:230px;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(255,255,255,.86);border-radius:16px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1);text-align:center}}
 .empty-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 44%;opacity:.86}}
-.empty-hero::after{{position:absolute;inset:0;z-index:-1;content:"";background:rgba(245,248,252,.74)}}
+.empty-veil{{position:absolute;inset:0;z-index:-1;background:rgba(245,248,252,.66)}}
 .empty-content{{position:relative;padding:28px 24px}}
 .empty-title{{font-size:22px;font-weight:700;color:#263247}}
 .empty-text{{max-width:620px;margin:12px auto 0;font-size:15px;line-height:1.6;color:#64748a;white-space:pre-wrap}}

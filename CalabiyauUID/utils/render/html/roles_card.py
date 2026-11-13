@@ -178,7 +178,7 @@ def _map_cards(
                 )
         sides_html = "".join(side_lines) or '<div class="lineup-empty">暂无攻防阵容摘要</div>'
         map_image = map_images.get(map_info.slug, "") if map_info is not None else ""
-        map_art = f'<img class="map-art" src="{_escape(map_image)}" alt="">' if map_image else ""
+        map_art = (f'<img class="map-art" src="{_escape(map_image)}" alt="">' if map_image else "") + '<div class="map-veil"></div>'
         cards.append(
             f'<article class="map-card">{map_art}<div class="map-head"><b>{_escape(map_name)}</b>'
             f'<span>{games_text} · {rate_text}</span></div>{sides_html}</article>'
@@ -201,7 +201,7 @@ def render_roles_html(
     entry_count = len(entries) if isinstance(entries, list) else 0
     images = role_images or {}
     maps = map_images or {}
-    banner_html = f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else ""
+    banner_html = (f'<img class="banner-art" src="{_escape(banner_image)}" alt="">' if banner_image else "") + '<div class="banner-veil"></div>'
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>超弦体排行</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
@@ -209,8 +209,8 @@ body{{width:100%;background:radial-gradient(ellipse at 8% 0%,rgba(109,153,208,.2
 .card{{width:100%;padding:20px 24px 12px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
 .header{{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:104px;margin-bottom:13px;padding:17px 19px;overflow:hidden;border:1px solid rgba(255,255,255,.84);border-radius:14px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1)}}
 .banner-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 46%;opacity:.88}}
-.header::after{{position:absolute;inset:0;z-index:-1;content:"";background:linear-gradient(90deg,rgba(249,251,253,.91),rgba(245,248,252,.76) 62%,rgba(235,241,248,.64))}}
-.title{{font-size:23px;font-weight:750;color:#263247}}.note{{margin-top:5px;color:#66768b;font-size:11px}}
+.banner-veil{{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(245,248,252,.9) 0%,rgba(245,248,252,.66) 46%,rgba(245,248,252,.42) 100%)}}
+.title{{font-size:23px;font-weight:750;color:#263247}}.note{{margin-top:5px;color:#536375;font-size:11px}}
 .region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.92);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap}}
 .panel{{overflow:hidden;margin-bottom:12px;border:1px solid #cad6e4;border-radius:14px;background:linear-gradient(155deg,rgba(246,249,252,.84),rgba(222,231,241,.78));box-shadow:0 8px 24px rgba(39,55,80,.09)}}
 .panel-head{{display:flex;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid #e1e7ef;color:#344156;font-size:13px;font-weight:700}}
@@ -236,7 +236,7 @@ body{{width:100%;background:radial-gradient(ellipse at 8% 0%,rgba(109,153,208,.2
 .maps{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px}}
 .map-card{{position:relative;isolation:isolate;min-width:0;padding:9px 10px;overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:10px;background:linear-gradient(145deg,#dce6f0,#eef3f8);box-shadow:0 3px 9px rgba(49,67,91,.08)}}
 .map-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 46%;opacity:.84}}
-.map-card::before{{position:absolute;inset:0;z-index:-1;content:"";background:rgba(244,248,252,.74)}}
+.map-veil{{position:absolute;inset:0;z-index:-1;background:rgba(244,248,252,.72)}}
 .map-card>*:not(.map-art){{position:relative}}
 .map-head{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;color:#364359;font-size:11px}}
 .map-head span{{color:#8491a3;font-size:8px;text-align:right;white-space:nowrap}}
