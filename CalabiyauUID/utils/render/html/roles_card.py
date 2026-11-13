@@ -96,10 +96,8 @@ def _role_rows(entries: object, role_images: Mapping[int, str]) -> str:
             delta_html = '<span class="delta unknown">昨日暂无</span>'
         appearance_width = max(0, min(100, appearance or 0))
         win_width = max(0, min(100, win_rate or 0))
-        art = _role_image(role_id, role_images)
-        art_html = f'<img class="row-art" src="{_escape(art)}" alt="">' if position <= 3 and art else ""
         rows.append(
-            f'<article class="role-row rank-{position if position <= 3 else "other"}">{art_html}'
+            f'<article class="role-row rank-{position if position <= 3 else "other"}">'
             f'<span class="role-pos">{position:02d}</span>{_portrait(role_id, name, role_images)}'
             f'<div class="role-name">{_escape(name)}</div>'
             f'<div class="role-stat"><b>{games_text}</b><span>场次</span></div>'
@@ -216,15 +214,13 @@ body{{width:100%;background:radial-gradient(ellipse at 8% 0%,rgba(109,153,208,.2
 .panel-head{{display:flex;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid #e1e7ef;color:#344156;font-size:13px;font-weight:700}}
 .panel-head span{{color:#8491a3;font-size:9px;font-weight:400;text-align:right}}
 .role-list{{padding:3px 10px}}
-.role-row{{position:relative;isolation:isolate;display:grid;grid-template-columns:24px 43px minmax(105px,1fr) 54px 76px 70px 50px;align-items:center;gap:7px;min-height:51px;padding:4px 4px;border-bottom:1px solid #dce5ef;overflow:hidden}}
-.row-art{{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;object-position:center 24%;opacity:.74}}
-.role-row::before{{position:absolute;inset:0;z-index:1;content:"";background:rgba(246,249,252,.72)}}
+.role-row{{display:grid;grid-template-columns:24px 48px minmax(105px,1fr) 54px 76px 70px 50px;align-items:center;gap:7px;min-height:51px;padding:4px 4px;border-bottom:1px solid #dce5ef;overflow:hidden;background:rgba(255,255,255,.3)}}
+.role-row:nth-child(even){{background:rgba(218,229,241,.32)}}
 .role-row.rank-1{{min-height:62px;box-shadow:inset 4px 0 #d5aa49}}.role-row.rank-2{{min-height:60px;box-shadow:inset 4px 0 #9da9b8}}.role-row.rank-3{{min-height:58px;box-shadow:inset 4px 0 #bd805c}}
-.role-row.rank-1::before{{background:rgba(255,250,232,.68)}}.role-row.rank-2::before{{background:rgba(246,248,251,.7)}}.role-row.rank-3::before{{background:rgba(255,243,235,.68)}}
-.role-row>*:not(.row-art){{position:relative;z-index:2}}
+.role-row.rank-1{{background:rgba(255,250,232,.92)}}.role-row.rank-2{{background:rgba(246,248,251,.92)}}.role-row.rank-3{{background:rgba(255,243,235,.92)}}
 .role-row:last-child{{border-bottom:0}}
 .role-pos{{color:#77869b;font:700 10px "Mono",monospace;text-align:center}}.rank-1 .role-pos{{color:#bd8728}}.rank-2 .role-pos{{color:#7c8797}}.rank-3 .role-pos{{color:#a96b4d}}
-.role-portrait{{display:flex;width:39px;height:44px;align-items:flex-end;justify-content:center;overflow:hidden;border-radius:7px;background:#dce5ef;color:#65758a;font-size:15px;font-weight:700}}
+.role-portrait{{display:flex;width:44px;height:48px;align-items:flex-end;justify-content:center;overflow:hidden;border-radius:7px;background:#dce5ef;color:#65758a;font-size:15px;font-weight:700}}
 .role-portrait img{{display:block;width:100%;height:100%;object-fit:cover;object-position:center top}}
 .role-name{{min-width:0;overflow:hidden;color:#344156;font-size:11px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}}
 .role-stat{{display:flex;flex-direction:column;align-items:flex-end;color:#8491a3;text-align:right}}

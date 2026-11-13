@@ -161,10 +161,8 @@ def _entry_html(
     role_html = (
         f'<span class="role-image"><img src="{_escape(role_image)}" alt=""></span>' if role_image else ""
     )
-    art_html = f'<img class="entry-art" src="{_escape(role_image)}" alt="">' if position <= 3 and role_image else ""
     return (
         f'<article class="entry rank-{position if position <= 3 else "other"}">'
-        f'{art_html}'
         f'<span class="position">{position:02d}</span>{avatar}'
         f'<div class="identity"><div class="nickname">{_escape(nickname)}{level_html}</div>'
         f'<div class="role">{role_html}<span>{_escape(role_name)}</span></div></div>'
@@ -222,13 +220,10 @@ body{{width:100%;background:radial-gradient(ellipse at 12% 0%,rgba(115,156,210,.
 .sub{{margin-top:5px;color:#536375;font-size:11px}}
 .region{{padding:5px 9px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(232,241,255,.9);color:#356fd1;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(40,70,110,.08)}}
 .list{{overflow:hidden;border:1px solid #cbd6e3;border-radius:14px;background:linear-gradient(155deg,rgba(245,248,252,.82),rgba(218,228,239,.72));box-shadow:0 8px 24px rgba(39,55,80,.1)}}
-.entry{{position:relative;isolation:isolate;display:flex;align-items:center;gap:9px;min-height:53px;padding:6px 11px;border-bottom:1px solid rgba(202,214,228,.8);background:rgba(255,255,255,.38);overflow:hidden}}
+.entry{{display:flex;align-items:center;gap:9px;min-height:53px;padding:6px 11px;border-bottom:1px solid rgba(202,214,228,.8);background:rgba(255,255,255,.38);overflow:hidden}}
 .entry:nth-child(even){{background:rgba(218,229,241,.4)}}.entry:last-child{{border-bottom:0}}
-.entry-art{{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;opacity:.76}}
-.entry::before{{position:absolute;inset:0;z-index:1;content:"";background:rgba(245,248,252,.72)}}
 .entry.rank-1{{min-height:64px;box-shadow:inset 4px 0 #d5aa49}}.entry.rank-2{{min-height:62px;box-shadow:inset 4px 0 #9da9b8}}.entry.rank-3{{min-height:60px;box-shadow:inset 4px 0 #bd805c}}
-.entry.rank-1::before{{background:rgba(255,250,232,.69)}}.entry.rank-2::before{{background:rgba(246,248,251,.72)}}.entry.rank-3::before{{background:rgba(255,243,235,.7)}}
-.entry>*:not(.entry-art){{position:relative;z-index:2}}
+.entry.rank-1{{background:rgba(255,250,232,.92)}}.entry.rank-2{{background:rgba(246,248,251,.92)}}.entry.rank-3{{background:rgba(255,243,235,.92)}}
 .position{{width:28px;flex:none;color:#77869b;font:700 14px "Mono",monospace;text-align:center}}
 .rank-1 .position{{color:#bd8728}}.rank-2 .position{{color:#7c8797}}.rank-3 .position{{color:#a96b4d}}
 .avatar{{display:flex;width:37px;height:37px;flex:none;align-items:center;justify-content:center;overflow:hidden;border:2px solid rgba(255,255,255,.9);border-radius:50%;background:#dce5ef;color:#53657b;font-size:13px;font-weight:700;box-shadow:0 2px 6px rgba(40,56,78,.14)}}
@@ -238,7 +233,7 @@ body{{width:100%;background:radial-gradient(ellipse at 12% 0%,rgba(115,156,210,.
 .level{{flex:none;padding:1px 4px;border-radius:4px;background:#e8edf4;color:#8491a3;font-size:8px;font-weight:600}}
 .role{{display:flex;align-items:center;gap:4px;min-width:0;margin-top:3px;color:#78869a;font-size:9px}}
 .role>span:last-child{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.role-image{{display:flex;width:18px;height:21px;flex:none;overflow:hidden;border-radius:4px;background:#dfe7f0}}
+.role-image{{display:flex;width:24px;height:27px;flex:none;overflow:hidden;border-radius:4px;background:#dfe7f0}}
 .role-image img{{width:100%;height:100%;object-fit:cover;object-position:center top}}
 .metric{{display:flex;width:132px;flex:none;flex-direction:column;align-items:flex-end;gap:1px;text-align:right}}
 .tier{{color:#465a76;font-size:10px;font-weight:700;white-space:nowrap}}
