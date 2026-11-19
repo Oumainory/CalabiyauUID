@@ -223,7 +223,7 @@ def _local_season_profile(profile: dict[str, object], season_id: int, label: str
     matches = previous_season_ranked(profile)  # type: ignore[arg-type]
     if not matches:
         return None
-        wins = sum(1 for match in matches if match.get("result") == "win")
+    wins = sum(1 for match in matches if match.get("result") == "win")
     losses = sum(1 for match in matches if match.get("result") == "lose")
     kills = sum(match.get("kills") or 0 for match in matches)
     deaths = sum(match.get("deaths") or 0 for match in matches)
