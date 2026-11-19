@@ -100,10 +100,16 @@ def _stat(label: str, value: str, tone: str = "") -> str:
 
 
 def _trend_matches(profile: DakanuProfile) -> list[DakanuMatch]:
-    ranked = [
-        match for match in profile["historyMatches"] if "RANK" in match["mode"] and match["divisionScore"] is not None
-    ]
-    return list(reversed(ranked))[-_TREND_POINTS:]
+    seen: set[object] = set()
+    ranked: list[DakanuMatch] = []
+    for match in (*profile["matches"], *profile["historyMatches"]):
+        room_id = match["roomId"]
+        if "RANK" not in match["mode"] or match["divisionScore"] is None or room_id in seen:
+            continue
+        seen.add(room_id)
+        ranked.append(match)
+    ranked.sort(key=lambda match: match["playedAt"] or 0)
+    return ranked[-_TREND_POINTS:]
 
 
 def _trend_svg(matches: list[DakanuMatch]) -> str:
