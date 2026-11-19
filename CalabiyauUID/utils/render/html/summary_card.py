@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from gsuid_core.utils.html_render import render_html_to_bytes
 
-from ...api.dakanu import DakanuMode, DakanuRole, DakanuMatch, DakanuLeisure, DakanuProfile, DakanuSummary
+from ...api.dakanu import DakanuMode, DakanuRole, DakanuMatch, DakanuLeisure, DakanuProfile, DakanuSummary, DakanuRank
 from ...helper.map_images import load_map_images
 
 _CARD_WIDTH = 760
@@ -40,6 +40,27 @@ class SummaryAssets:
     medal_images: tuple[str, ...]
     region: str
     season_label: str | None
+    historical_season_label: str = ""
+
+
+def peak_segment(rank: DakanuRank, *, season_view: bool) -> int:
+    """赛季卡用当季最高，生涯总览用生涯历史最高段位。"""
+    if not season_view:
+        historical = rank.get("historicalSegment")
+        if isinstance(historical, int) and not isinstance(historical, bool) and historical > 0:
+            return historical
+    return rank["topSegment"]
+
+
+def _historical_score(profile: DakanuProfile) -> int | None:
+    scores = [
+        match["divisionScore"]
+        for match in (*profile["matches"], *profile["historyMatches"])
+        if "RANK" in match["mode"]
+        and isinstance(match["divisionScore"], int)
+        and not isinstance(match["divisionScore"], bool)
+    ]
+    return max(scores) if scores else None
 
 
 def _tier(segment: int) -> tuple[str, str, str]:
@@ -344,7 +365,7 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     rank = profile["rank"]
     summary: DakanuSummary = profile["summary"]
     tier_label, tier_color, _ = _tier(rank["segment"])
-    top_label, top_color, _ = _tier(rank["topSegment"])
+    top_label, top_color, _ = _tier(peak_segment(rank, season_view=bool(assets.season_label)))
     season = _escape(profile["meta"]["currentSeason"])
     roles = profile["roles"][:5]
     modes = profile["modes"][:3]
@@ -401,6 +422,12 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     rank_pos = f"#{rank['rankPos']}" if rank["rankPos"] is not None else "未上榜"
     top_rank_position = rank["topRankPos"] if assets.season_label else rank["historicalSegmentPos"]
     top_rank_pos = f"#{top_rank_position}" if top_rank_position is not None else "—"
+    peak_season = season if assets.season_label else _escape(assets.historical_season_label)
+    if assets.season_label:
+        peak_score_text = f'{rank["topDivisionScore"]} 段位分'
+    else:
+        historical_score = _historical_score(profile)
+        peak_score_text = f"{historical_score} 历史段位分" if historical_score is not None else "暂无历史段位分"
     wins = summary["wins"]
     losses = summary["losses"]
     bar_width = max(0.0, min(100.0, (_finite(summary["winRate"]) or 0.0) * 100))
@@ -585,10 +612,10 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba
         </div>
       </div>
       <div class="rank-card">
-        <div class="rank-card-head"><span>排位赛 · {"该赛季最高" if assets.season_label else "历史最高"}</span><span>{season if assets.season_label else f"赛季 S{rank['historicalSegmentSeason']}"}</span></div>
+        <div class="rank-card-head"><span>排位赛 · {"该赛季最高" if assets.season_label else "历史最高"}</span><span>{peak_season}</span></div>
         <div class="rank-card-body">
           <div class="rank-card-icon"><img src="{top_tier_icon}" alt=""></div>
-          <div class="rank-card-info"><div class="rank-card-name" style="color:{top_color}">{_escape(top_label)}</div><div class="rank-card-sub">{rank["topDivisionScore"]} 历史段位分</div></div>
+          <div class="rank-card-info"><div class="rank-card-name" style="color:{top_color}">{_escape(top_label)}</div><div class="rank-card-sub">{peak_score_text}</div></div>
           <div class="rank-card-right"><b>{_escape(top_rank_pos)}</b><span>{"赛季排名" if assets.season_label else "历史排名"}</span></div>
         </div>
       </div>

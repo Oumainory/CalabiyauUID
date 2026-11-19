@@ -24,6 +24,7 @@ from ..utils.helper.resolve_player import resolve_player_query_context
 from ..utils.render.html.summary_card import (
     SummaryAssets,
     tier_index,
+    peak_segment,
     render_summary_card,
     challenge_tier_index,
 )
@@ -78,7 +79,7 @@ async def render_snapshot_card(
     baseplate_path = await resolve_image(baseplate_url, local_baseplate_image(avatar_id))
     frame_path = await resolve_image(frame_url, local_frame_image(profile["player"]["borderId"]))
     rank_tier = tier_index(profile["rank"]["segment"])
-    top_tier = tier_index(profile["rank"]["topSegment"])
+    top_tier = tier_index(peak_segment(profile["rank"], season_view=season_label is not None))
     tier_path = local_tier_image(rank_tier) if rank_tier else None
     top_tier_path = local_tier_image(top_tier) if top_tier else None
     challenge_tier = challenge_tier_index(leisure["segment"]) if leisure is not None and "segment" in leisure else 0
@@ -110,6 +111,11 @@ async def render_snapshot_card(
         except Exception:
             medal_images.append("")
 
+    historical_season_label = ""
+    historical_season_id = profile["rank"].get("historicalSegmentSeason")
+    if season_label is None and isinstance(historical_season_id, int) and not isinstance(historical_season_id, bool) and historical_season_id > 0:
+        historical_season_label = await _season_label_by_id(historical_season_id, region=region)
+
     assets = SummaryAssets(
         avatar=_data_uri(avatar_path.read_bytes(), avatar_path.suffix),
         tier_icon=_data_uri(tier_path.read_bytes(), tier_path.suffix) if tier_path is not None else "",
@@ -126,6 +132,7 @@ async def render_snapshot_card(
         medal_images=tuple(medal_images),
         region=region,
         season_label=season_label,
+        historical_season_label=historical_season_label,
     )
     return await render_summary_card(profile, assets)
 
@@ -156,6 +163,25 @@ async def resolve_season_label(label: str, *, region: str = "cn") -> tuple[int, 
         ):
             return season_id, season_label
     return None
+
+
+async def _season_label_by_id(season_id: int, *, region: str = "cn") -> str:
+    try:
+        payload = await fetch_ranking_seasons(region=region)
+    except DakanuError:
+        return ""
+    seasons = payload.get("seasons", [])
+    if not isinstance(seasons, list):
+        return ""
+    for season in seasons:
+        if (
+            isinstance(season, dict)
+            and season.get("season_id") == season_id
+            and isinstance(season.get("label"), str)
+            and season["label"].strip()
+        ):
+            return season["label"].strip()
+    return ""
 
 
 def _season_profile(profile: dict[str, object], season: dict[str, object], label: str | None):
