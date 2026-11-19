@@ -5,10 +5,9 @@ from gsuid_core.bot import Bot
 from gsuid_core.logger import logger
 from gsuid_core.models import Event
 
-from .stats_services import resolve_player_id, extract_season_tag, render_snapshot_card, resolve_season_label
+from .stats_services import resolve_player_id, extract_season_tag, render_snapshot_card, resolve_season_label, ensure_player_snapshot
 from ..utils.api.dakanu import DakanuError
-from ..utils.helper.player_data import load_player_snapshot, load_or_fetch_player_snapshot
-from ..utils.helper.resolve_player import region_label, parse_region_keyword
+from ..utils.helper.player_data import load_player_snapshot
 
 sv_stats = SV("卡拉彼丘战绩查询")
 
@@ -16,8 +15,6 @@ sv_stats = SV("卡拉彼丘战绩查询")
 @sv_stats.on_command("战绩总览", block=True)
 async def calabiyau_stats_summary(bot: Bot, ev: Event) -> None:
     raw_text, season_label = extract_season_tag(ev.text.strip())
-    player_query, _ = parse_region_keyword(raw_text)
-    explicit_target = bool(player_query)
     player_id, region, error = await resolve_player_id(ev, raw_text=raw_text)
     if error is not None:
         await bot.send(error)
@@ -34,20 +31,15 @@ async def calabiyau_stats_summary(bot: Bot, ev: Event) -> None:
             await bot.send(f"没有在 Dakanu 赛季列表中找到「{season_label}」。请确认赛季标签后重试。")
             return
 
-    if explicit_target or season is not None or region == "global":
-        try:
-            snapshot = await load_or_fetch_player_snapshot(player_id, region=region)
-        except DakanuError as exc:
+    await bot.send("正在同步最新战绩，通常需要 10～30 秒，完成后会发图。")
+    try:
+        snapshot = await ensure_player_snapshot(player_id, refresh=True, region=region)
+    except (DakanuError, RuntimeError) as exc:
+        snapshot = await load_player_snapshot(player_id, region=region)
+        if snapshot is None:
             await bot.send(str(exc))
             return
-    else:
-        snapshot = await load_player_snapshot(player_id, region=region)
-    if snapshot is None:
-        if explicit_target:
-            await bot.send(f"本地还没有这个玩家的{region_label(region)}战绩缓存。\n发送 kq刷新数据 {player_id} 拉取后再查看。")
-        else:
-            await bot.send("本地还没有这个玩家的战绩。\n发送 kq刷新数据 拉取后再查看。")
-        return
+        await bot.send(f"最新数据刷新失败：{exc}\n先显示本地快照。")
 
     try:
         image = await render_snapshot_card(

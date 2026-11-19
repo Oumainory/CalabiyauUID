@@ -19,7 +19,7 @@ from ..utils.helper.assets import (
     local_challenge_tier_image,
 )
 from ..utils.helper.refresh import refresh_player_data
-from ..utils.helper.player_data import PlayerSnapshot, load_player_snapshot
+from ..utils.helper.player_data import PlayerSnapshot
 from ..utils.helper.resolve_player import resolve_player_query_context
 from ..utils.render.html.summary_card import (
     SummaryAssets,
@@ -131,10 +131,8 @@ async def render_snapshot_card(
 
 
 async def build_summary_card(player_id: str, *, region: str = "cn") -> bytes:
-    """只读本地快照渲染；没有快照时提示先刷新。"""
-    snapshot = await load_player_snapshot(player_id, region=region)
-    if snapshot is None:
-        raise DakanuError("本地还没有这个玩家的战绩。\n请先发送 kq刷新数据 拉取。")
+    """刷新最新战绩后渲染总览卡。"""
+    snapshot = await ensure_player_snapshot(player_id, refresh=True, region=region)
     return await render_snapshot_card(snapshot, region=region)
 
 

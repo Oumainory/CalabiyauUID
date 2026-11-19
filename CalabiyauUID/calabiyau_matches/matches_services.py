@@ -47,10 +47,10 @@ async def _load_recent_matches_data(
     if snapshot is None:
         snapshot = await load_player_snapshot(player_id, region=region)
     if snapshot is None:
-        raise DakanuError("本地还没有这个玩家的战绩。\n发送 kq刷新数据 拉取后再查看。")
+        raise DakanuError("暂时没有这个玩家的战绩可展示。")
     matches = snapshot.profile["matches"]
     if not matches:
-        raise DakanuError("历史战绩为空。\n发送 kq刷新数据 更新后再查看。")
+        raise DakanuError("历史战绩为空。")
     views = await load_recent_match_views(player_id, matches, _RECENT_LIMIT, region=region)
     return snapshot, views
 
