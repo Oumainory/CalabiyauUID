@@ -239,6 +239,7 @@ def _local_season_profile(profile: dict[str, object], season_id: int, label: str
     result = deepcopy(profile)
     result["matches"] = matches
     result["historyMatches"] = []
+    result["modes"] = []
     result["summary"] = {
         "rounds": len(matches),
         "wins": wins,

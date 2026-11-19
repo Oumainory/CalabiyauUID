@@ -108,6 +108,16 @@ def current_score(rank: DakanuRank) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def peak_score(rank: DakanuRank) -> int | None:
+    """该赛季最高分：优先 topDivisionScore，缺省或为 0 时用 topGradeScore。"""
+    for key in ("topDivisionScore", "topGradeScore"):
+        value = rank.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    value = rank.get("topDivisionScore")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _fill_season_stats(profile: DakanuProfile, summary: DakanuSummary) -> DakanuSummary:
     """站点本赛季摘要若缺击杀等字段，用本赛季排位对局补上。"""
     matches = _current_season_ranked(profile)
@@ -234,16 +244,60 @@ def display_roles(profile: DakanuProfile) -> list[DakanuRole]:
     return roles[:5]
 
 
+def _modes_from_matches(profile: DakanuProfile) -> list[DakanuMode]:
+    """按当前卡片范围内的排位对局汇总模式统计。"""
+    buckets: dict[str, list[DakanuMatch]] = {}
+    order: list[str] = []
+    for match in _current_season_ranked(profile):
+        label = match.get("modeLabel")
+        if not isinstance(label, str) or not label.strip() or label == "unknown":
+            label = "排位爆破"
+        if label not in buckets:
+            buckets[label] = []
+            order.append(label)
+        buckets[label].append(match)
+    modes: list[DakanuMode] = []
+    for label in order[:3]:
+        group = buckets[label]
+        wins = sum(1 for match in group if match.get("result") == "win")
+        kills = sum(match.get("kills") or 0 for match in group)
+        deaths = sum(match.get("deaths") or 0 for match in group)
+        assists = sum(match.get("assists") or 0 for match in group)
+        mvp_count = sum(1 for match in group if match.get("mvp"))
+        modes.append(
+            {
+                "mode": str(group[0].get("mode") or ""),
+                "label": label,
+                "rounds": len(group),
+                "wins": wins,
+                "winRate": wins / len(group),
+                "kd": kills / deaths if deaths else float(kills),
+                "avgDamage": None,  # type: ignore[typeddict-item]
+                "roundAveDamage": None,  # type: ignore[typeddict-item]
+                "avgKill": kills / len(group),
+                "avgAssist": assists / len(group),
+                "avgDeath": deaths / len(group),
+                "headshotRate": None,  # type: ignore[typeddict-item]
+                "mvpCount": mvp_count,
+                "mvpRate": mvp_count / len(group),
+            }
+        )
+    return modes
+
+
 def _display_modes(profile: DakanuProfile) -> list[DakanuMode]:
-    modes = list(profile["modes"][:3])
     matches = _current_season_ranked(profile)
+    modes = list((profile.get("modes") or [])[:3])
+    mode_rounds = sum(int(mode.get("rounds") or 0) for mode in modes)
+    if matches and (not modes or mode_rounds != len(matches)):
+        return _modes_from_matches(profile)
     if len(modes) != 1 or not matches:
         return modes
     mode = dict(modes[0])
     label = mode.get("label")
     if isinstance(label, str) and label not in {"", "unknown"}:
         return modes
-    mode["label"] = matches[0].get("modeLabel") or "排位"
+    mode["label"] = matches[0].get("modeLabel") or "排位爆破"
     filled = _fill_season_stats(profile, mode)  # type: ignore[arg-type]
     return [filled]  # type: ignore[list-item]
 
@@ -617,7 +671,8 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     top_rank_pos = f"#{top_rank_position}" if top_rank_position is not None else "—"
     peak_season = season if assets.season_label else _escape(assets.historical_season_label)
     if assets.season_label:
-        peak_score_text = f'{rank["topDivisionScore"]} 段位分'
+        season_peak = peak_score(rank)
+        peak_score_text = f"{season_peak} 段位分" if season_peak is not None else "暂无段位分"
     else:
         historical_score = _historical_score(profile)
         peak_score_text = f"{historical_score} 历史段位分" if historical_score is not None else "暂无历史段位分"
@@ -637,12 +692,8 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     )
     peers_html = "" if assets.season_label else _peer_block(profile)
     trend_matches = _trend_matches(profile)
-    trend_html = (
-        '<div class="trend-empty">本赛季暂无排位分趋势</div>'
-        if assets.season_label
-        else _trend_block(profile)
-    )
-    trend_note = "赛季历史数据" if assets.season_label else f"最近 {len(trend_matches)} 场排位"
+    trend_html = _trend_block(profile)
+    trend_note = f"最近 {len(trend_matches)} 场排位" if trend_matches else "赛季排位数据"
     role_note = "本赛季排位 · 按场次"
 
     return f"""<!DOCTYPE html>
