@@ -647,7 +647,7 @@ def _fetch_refresh_status_sync(player_id: str, region: str = "cn") -> DakanuRefr
             response = _request_with_retry(client, "GET", f"{BASE_URL}/api/summoner/{player_id}/refresh")
     except httpx.TimeoutException as exc:
         raise DakanuError("读取刷新状态超时，请稍后再试。") from exc
-    if response.status_code != 200:
+    if response.status_code not in (200, 202):
         logger.warning(f"[卡拉彼丘·刷新数据] 读取玩家 {player_id} 刷新状态返回 HTTP {response.status_code}")
         raise DakanuError("读取刷新状态失败，请稍后再试。")
     try:

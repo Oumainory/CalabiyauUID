@@ -33,7 +33,7 @@ async def calabiyau_recent_matches(bot: Bot, ev: Event) -> None:
     except DakanuError as exc:
         await bot.send(str(exc))
         return
-    except RuntimeError:
+    except Exception:
         logger.exception("[卡拉彼丘·历史战绩] 渲染卡片失败")
         await bot.send("历史战绩卡片生成失败，请稍后再试。")
         return

@@ -51,7 +51,7 @@ async def calabiyau_stats_summary(bot: Bot, ev: Event) -> None:
     except DakanuError as exc:
         await bot.send(str(exc))
         return
-    except RuntimeError:
+    except Exception:
         logger.exception("[卡拉彼丘·战绩总览] 渲染卡片失败")
         await bot.send("战绩卡片生成失败，请稍后再试。")
         return

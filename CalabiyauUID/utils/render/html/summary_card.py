@@ -77,14 +77,24 @@ def _challenge_label(segment: int) -> tuple[str, str]:
     return names[tier_index], "#8f98a8"
 
 
-def _pct(value: float) -> str:
-    return f"{value * 100:.1f}%"
+def _finite(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
-def _num(value: float, digits: int = 0) -> str:
+def _pct(value: object) -> str:
+    number = _finite(value)
+    return "—" if number is None else f"{number * 100:.1f}%"
+
+
+def _num(value: object, digits: int = 0) -> str:
+    number = _finite(value)
+    if number is None:
+        return "—"
     if digits == 0:
-        return f"{value:,.0f}"
-    return f"{value:,.{digits}f}"
+        return f"{number:,.0f}"
+    return f"{number:,.{digits}f}"
 
 
 def _escape(value: str) -> str:
@@ -213,7 +223,7 @@ def _role_card(role: DakanuRole, image: str) -> str:
         f'<div class="role-name">{_escape(role["name"])}</div>'
         f'<div class="role-rate">{_pct(role["winRate"])}</div>'
         f'<div class="role-count">{role["count"]} 场</div>'
-        f'<div class="role-kd">K/D {role["kd"]:.2f}</div>'
+        f'<div class="role-kd">K/D {_num(role["kd"], 2)}</div>'
         "</div>"
     )
 
@@ -225,11 +235,11 @@ def _mode_block(mode: DakanuMode, index: int) -> str:
         '<div class="mode-grid">'
         '<div class="mode-grid-row">'
         f"{_stat('胜率', _pct(mode['winRate']), 'blue')}"
-        f'<div class="stat"><span class="stat-label">K/D</span><span class="stat-value is-blue">{mode["kd"]:.2f}</span></div>'
+        f'<div class="stat"><span class="stat-label">K/D</span><span class="stat-value is-blue">{_num(mode["kd"], 2)}</span></div>'
         f"{_stat('场均伤害', _num(mode['avgDamage']))}"
         "</div>"
         '<div class="mode-grid-row">'
-        f'<div class="stat"><span class="stat-label">场均击杀</span><span class="stat-value">{mode["avgKill"]:.2f}</span></div>'
+        f'<div class="stat"><span class="stat-label">场均击杀</span><span class="stat-value">{_num(mode["avgKill"], 2)}</span></div>'
         f"{_stat('爆头率', _pct(mode['headshotRate']))}"
         f"{_stat('MVP 率', _pct(mode['mvpRate']), 'gold')}"
         "</div>"
@@ -393,7 +403,7 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     top_rank_pos = f"#{top_rank_position}" if top_rank_position is not None else "—"
     wins = summary["wins"]
     losses = summary["losses"]
-    bar_width = max(0.0, min(100.0, summary["winRate"] * 100))
+    bar_width = max(0.0, min(100.0, (_finite(summary["winRate"]) or 0.0) * 100))
 
     role_images = assets.role_images
     roles_html = (
@@ -611,19 +621,19 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba
               <span class="highlight-label">K/D · KDA</span>
               <span class="highlight-sub">{summary["kills"]} / {summary["deaths"]} / {summary["assists"]}</span>
             </div>
-            <div class="highlight-val">{summary["kd"]:.2f} <small style="font-size:15px;color:#788497;font-weight:400">/ {summary["kda"]:.2f}</small></div>
+            <div class="highlight-val">{_num(summary["kd"], 2)} <small style="font-size:15px;color:#788497;font-weight:400">/ {_num(summary["kda"], 2)}</small></div>
             <div class="highlight-desc">总击杀 / 死亡 / 助攻</div>
           </div>
         </div>
         <div class="stats-table">
           <div class="stats-row">
             <div class="stat"><span class="stat-label">场均伤害</span><span class="stat-value">{_num(summary["avgDamage"])}</span></div>
-            <div class="stat"><span class="stat-label">回合均伤</span><span class="stat-value">{summary["roundAveDamage"]:.1f}</span></div>
-            <div class="stat"><span class="stat-label">场均击杀</span><span class="stat-value">{summary["avgKill"]:.2f}</span></div>
-            <div class="stat"><span class="stat-label">场均死亡</span><span class="stat-value">{summary["avgDeath"]:.2f}</span></div>
+            <div class="stat"><span class="stat-label">回合均伤</span><span class="stat-value">{_num(summary["roundAveDamage"], 1)}</span></div>
+            <div class="stat"><span class="stat-label">场均击杀</span><span class="stat-value">{_num(summary["avgKill"], 2)}</span></div>
+            <div class="stat"><span class="stat-label">场均死亡</span><span class="stat-value">{_num(summary["avgDeath"], 2)}</span></div>
           </div>
           <div class="stats-row">
-            <div class="stat"><span class="stat-label">场均助攻</span><span class="stat-value">{summary["avgAssist"]:.2f}</span></div>
+            <div class="stat"><span class="stat-label">场均助攻</span><span class="stat-value">{_num(summary["avgAssist"], 2)}</span></div>
             <div class="stat"><span class="stat-label">爆头率</span><span class="stat-value">{_pct(summary["headshotRate"])}</span></div>
             <div class="stat"><span class="stat-label">MVP 率</span><span class="stat-value is-gold">{_pct(summary["mvpRate"])}</span></div>
             <div class="stat"><span class="stat-label">MVP 次数</span><span class="stat-value is-gold">{summary["mvpCount"]}</span></div>
