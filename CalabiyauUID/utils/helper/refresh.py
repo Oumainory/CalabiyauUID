@@ -52,9 +52,7 @@ async def _snapshot_from_profile(player_id: str, profile: DakanuProfile, region:
                 ("currentStar", "topStar", "star"),
             ):
                 value = season_leisure.get(current_key)
-                if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-                    value = season_leisure.get(top_key)
-                if isinstance(value, int) and not isinstance(value, bool):
+                if isinstance(value, int) and not isinstance(value, bool) and value > 0:
                     fallback[target] = value
             for key in ("topRank", "topScore", "topStar"):
                 value = season_leisure.get(key)

@@ -338,9 +338,8 @@ def _normalize_season_leisure(value: dict[str, object]) -> dict[str, object] | N
         ("currentStar", "topStar", "star"),
     ):
         item = value.get(current_key)
-        if not isinstance(item, int) or isinstance(item, bool) or item <= 0:
-            item = value.get(top_key)
-        if isinstance(item, int) and not isinstance(item, bool):
+        # 当前值为 0 表示本赛季还没打，不要用历史最高顶上。
+        if isinstance(item, int) and not isinstance(item, bool) and item > 0:
             leisure[target] = item
     for key in ("topRank", "topScore", "topStar"):
         item = value.get(key)

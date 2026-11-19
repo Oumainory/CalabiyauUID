@@ -191,6 +191,23 @@ def previous_season_ranked(profile: DakanuProfile) -> list[DakanuMatch]:
     return [match for match in _ranked_matches(profile) if match["roomId"] not in current_ids]
 
 
+def leisure_played_this_season(profile: DakanuProfile) -> bool:
+    """本赛季是否打过挑战赛：重置后、首场本赛季排位之后的非排位对局。"""
+    current = _current_season_ranked(profile)
+    if not current:
+        return False
+    start = _match_time(current[0])
+    if start <= 0:
+        return False
+    for match in (*profile.get("matches", ()), *profile.get("historyMatches", ())):
+        mode = match.get("mode") or ""
+        if "RANK" in str(mode):
+            continue
+        if _match_time(match) >= start:
+            return True
+    return False
+
+
 def _role_name(profile: DakanuProfile, role_id: int) -> str:
     for role in profile.get("roles") or []:
         name = role.get("name")
@@ -635,6 +652,8 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
         baseplate_html = '<div class="challenge-empty">暂无基板展示图</div>'
 
     leisure = assets.leisure
+    if leisure is not None and not leisure_played_this_season(profile):
+        leisure = None
     if (
         leisure is not None
         and isinstance(leisure.get("segment"), int)
