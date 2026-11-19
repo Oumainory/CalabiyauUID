@@ -857,6 +857,33 @@ async def fetch_ranking_seasons(*, region: str = "cn") -> dict[str, object]:
     return payload
 
 
+def unpublished_current_season(label: str, seasons: object) -> str | None:
+    """列表尚未收录时，识别比最新 SxxEPn 再高一集的当前赛季标签。"""
+    import re
+
+    normalized = label.strip().upper()
+    if not normalized:
+        return None
+    latest: tuple[int, int, str] | None = None
+    if isinstance(seasons, list):
+        for season in seasons:
+            if not isinstance(season, dict):
+                continue
+            item = season.get("label")
+            if not isinstance(item, str):
+                continue
+            match = re.fullmatch(r"S(\d+)EP(\d+)", item.strip(), re.IGNORECASE)
+            if match is None:
+                continue
+            key = (int(match.group(1)), int(match.group(2)), item.strip().upper())
+            if latest is None or key[:2] > latest[:2]:
+                latest = key
+    if latest is None:
+        return None
+    expected = f"S{latest[0]}EP{latest[1] + 1}"
+    return expected if expected == normalized else None
+
+
 async def fetch_rankings(
     type_id: int,
     *,

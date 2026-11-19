@@ -20,15 +20,12 @@ async def calabiyau_stats_summary(bot: Bot, ev: Event) -> None:
         await bot.send(error)
         return
 
-    season: tuple[int, str] | None = None
+    season: tuple[int | None, str] | None = None
     if season_label is not None:
         try:
             season = await resolve_season_label(season_label, region=region)
         except DakanuError as exc:
             await bot.send(str(exc))
-            return
-        if season is None:
-            await bot.send(f"没有在 Dakanu 赛季列表中找到「{season_label}」。请确认赛季标签后重试。")
             return
 
     await bot.send("正在同步最新战绩，通常需要 10～30 秒，完成后会发图。")
@@ -40,6 +37,18 @@ async def calabiyau_stats_summary(bot: Bot, ev: Event) -> None:
             await bot.send(str(exc))
             return
         await bot.send(f"最新数据刷新失败：{exc}\n先显示本地快照。")
+
+    if season_label is not None and season is None:
+        current = (snapshot.profile.get("meta") or {}).get("currentSeason")
+        current_label = current if isinstance(current, str) else None
+        try:
+            season = await resolve_season_label(season_label, region=region, current_label=current_label)
+        except DakanuError as exc:
+            await bot.send(str(exc))
+            return
+        if season is None:
+            await bot.send(f"没有在 Dakanu 赛季列表中找到「{season_label}」。请确认赛季标签后重试。")
+            return
 
     try:
         image = await render_snapshot_card(

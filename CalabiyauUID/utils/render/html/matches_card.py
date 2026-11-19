@@ -152,7 +152,11 @@ def _match_html(view: MatchView, assets: MatchCardAssets) -> str:
     map_name = map_info.name if map_info is not None else "地图未知"
     kills, deaths, assists = _match_stats(view)
     kda_ratio = (kills + assists) / deaths if deaths > 0 else float(kills + assists)
-    team_kills = view.target_team_kills if view.target_team_kills is not None else match["teamKills"]
+    snapshot_team_kills = match["teamKills"]
+    if isinstance(snapshot_team_kills, int) and not isinstance(snapshot_team_kills, bool) and snapshot_team_kills > 0:
+        team_kills = snapshot_team_kills
+    else:
+        team_kills = view.target_team_kills
     participation = ""
     if team_kills is not None and team_kills > 0:
         ratio = round((kills + assists) / team_kills * 100)

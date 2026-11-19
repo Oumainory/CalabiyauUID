@@ -133,6 +133,10 @@ def _fill_season_stats(profile: DakanuProfile, summary: DakanuSummary) -> Dakanu
             result["avgDeath"] = deaths / len(matches)
         if result.get("avgAssist") in (0, None) and result.get("assists") in (0, None, assists):
             result["avgAssist"] = assists / len(matches)
+        if result.get("deaths") in (0, None) and deaths > 0:
+            result["deaths"] = deaths
+        if result.get("assists") in (0, None) and assists > 0:
+            result["assists"] = assists
         if result.get("avgDamage") == 0 and result.get("damage") in (0, None):
             result["avgDamage"] = None  # type: ignore[assignment]
             result["roundAveDamage"] = None  # type: ignore[assignment]
@@ -140,6 +144,94 @@ def _fill_season_stats(profile: DakanuProfile, summary: DakanuSummary) -> Dakanu
         result["mvpCount"] = mvp_count
         result["mvpRate"] = mvp_count / len(matches)
     return result  # type: ignore[return-value]
+
+
+_ROLE_NAMES = {
+    101: "米雪儿·李",
+    105: "奥黛丽·格罗夫",
+    107: "玛德蕾娜·利里",
+    108: "信",
+    109: "令",
+    110: "白墨",
+    112: "绯莎",
+    115: "芙拉薇娅",
+    119: "艾卡",
+    120: "珐格兰丝",
+    121: "忧雾",
+    122: "玛拉",
+    123: "蕾欧娜",
+    124: "心夏",
+    125: "千代",
+    126: "诺诺",
+    128: "拉薇",
+    130: "汐",
+    131: "伊薇特",
+    132: "明",
+    133: "梅瑞狄斯",
+    137: "香奈美",
+    146: "星绘",
+    205: "加拉蒂亚·利里",
+    220: "假人",
+}
+
+
+def previous_season_ranked(profile: DakanuProfile) -> list[DakanuMatch]:
+    """本赛季排位之前的生涯排位，用于上个赛季本地回退。"""
+    current_ids = {match["roomId"] for match in _current_season_ranked(profile)}
+    return [match for match in _ranked_matches(profile) if match["roomId"] not in current_ids]
+
+
+def _role_name(profile: DakanuProfile, role_id: int) -> str:
+    for role in profile.get("roles") or []:
+        name = role.get("name")
+        if role.get("roleId") == role_id and isinstance(name, str) and name.strip():
+            return name.strip()
+    return _ROLE_NAMES.get(role_id, f"角色 {role_id}")
+
+
+def display_roles(profile: DakanuProfile) -> list[DakanuRole]:
+    """本赛季（或当前卡片对局范围）排位角色使用，按场次排序。"""
+    matches = _current_season_ranked(profile)
+    if not matches:
+        return [role for role in profile.get("roles", [])[:5] if role.get("count")]
+    buckets: dict[int, dict[str, object]] = {}
+    for match in matches:
+        role_id = match.get("roleId")
+        if not isinstance(role_id, int) or isinstance(role_id, bool):
+            continue
+        bucket = buckets.get(role_id)
+        if bucket is None:
+            bucket = {
+                "roleId": role_id,
+                "name": _role_name(profile, role_id),
+                "count": 0,
+                "wins": 0,
+                "kills": 0,
+                "deaths": 0,
+                "damage": 0,
+                "maxKill": 0,
+                "maxDamage": 0,
+            }
+            buckets[role_id] = bucket
+        bucket["count"] = int(bucket["count"]) + 1
+        if match.get("result") == "win":
+            bucket["wins"] = int(bucket["wins"]) + 1
+        kills = match.get("kills") or 0
+        deaths = match.get("deaths") or 0
+        bucket["kills"] = int(bucket["kills"]) + kills
+        bucket["deaths"] = int(bucket["deaths"]) + deaths
+        bucket["maxKill"] = max(int(bucket["maxKill"]), kills)
+    roles: list[DakanuRole] = []
+    for bucket in buckets.values():
+        count = int(bucket["count"])
+        kills = int(bucket["kills"])
+        deaths = int(bucket["deaths"])
+        bucket["winRate"] = int(bucket["wins"]) / count if count else 0.0
+        bucket["kd"] = kills / deaths if deaths else float(kills)
+        bucket["avgDamage"] = 0.0
+        roles.append(bucket)  # type: ignore[arg-type]
+    roles.sort(key=lambda role: (-role["count"], -role["wins"], -role["kills"]))
+    return roles[:5]
 
 
 def _display_modes(profile: DakanuProfile) -> list[DakanuMode]:
@@ -266,15 +358,15 @@ def render_empty_summary_html(message: str, map_image: str = "") -> str:
 <title>战绩总览</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 12% 0%,rgba(109,153,208,.2),transparent 36%),radial-gradient(ellipse at 92% 20%,rgba(232,189,131,.14),transparent 28%),linear-gradient(145deg,#e3eaf3,#d8e2ee 52%,#e9edf3);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
-.empty-card{{width:100%;padding:24px;background:repeating-linear-gradient(135deg,rgba(95,123,158,.025) 0,rgba(95,123,158,.025) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(248,250,253,.88),rgba(225,233,243,.82))}}
-.empty-hero{{position:relative;isolation:isolate;display:flex;min-height:230px;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(255,255,255,.86);border-radius:16px;background:linear-gradient(120deg,#dce6f0,#cad8e7 55%,#e9e2d8);box-shadow:0 8px 22px rgba(39,55,80,.1);text-align:center}}
-.empty-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 44%;opacity:.96}}
-.empty-veil{{position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at center,rgba(245,248,252,.2) 0%,rgba(245,248,252,.08) 32%,rgba(245,248,252,0) 62%)}}
-.empty-content{{position:relative;width:calc(100% - 48px);max-width:560px;padding:20px 24px;border:1px solid rgba(255,255,255,.9);border-radius:14px;background:rgba(248,250,253,.88);box-shadow:0 8px 22px rgba(39,55,80,.14)}}
-.empty-title{{font-size:22px;font-weight:700;color:#263247}}
-.empty-text{{max-width:620px;margin:12px auto 0;font-size:15px;line-height:1.6;color:#64748a;white-space:pre-wrap}}
-.empty-footer{{padding-top:17px;color:#78869a;font-size:10px;text-align:center}}
+body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 12% 0%,rgba(80,120,180,.18),transparent 36%),radial-gradient(ellipse at 92% 20%,rgba(210,160,90,.12),transparent 28%),linear-gradient(145deg,#161c28,#121722 52%,#1a2130);color:#e8eef6;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
+.empty-card{{width:100%;padding:24px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 1px,transparent 8px),linear-gradient(145deg,rgba(18,24,36,.92),rgba(12,16,24,.94))}}
+.empty-hero{{position:relative;isolation:isolate;display:flex;min-height:230px;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:linear-gradient(120deg,#1b2433,#151b28 55%,#1d232f);box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center}}
+.empty-art{{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center 44%;opacity:.72}}
+.empty-veil{{position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at center,rgba(12,16,24,.35) 0%,rgba(12,16,24,.62) 42%,rgba(12,16,24,.82) 100%)}}
+.empty-content{{position:relative;width:calc(100% - 48px);max-width:560px;padding:20px 24px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(16,22,34,.78);box-shadow:0 8px 22px rgba(0,0,0,.35)}}
+.empty-title{{font-size:22px;font-weight:700;color:#e8eef6}}
+.empty-text{{max-width:620px;margin:12px auto 0;font-size:15px;line-height:1.6;color:#b4becc;white-space:pre-wrap}}
+.empty-footer{{padding-top:17px;color:#8b95a6;font-size:10px;text-align:center}}
 </style></head>
 <body><div class="empty-card"><div class="empty-hero">{image_html}<div class="empty-content"><div class="empty-title">还没有战绩数据</div><div class="empty-text">{_escape(message)}</div></div></div>
 <div class="empty-footer">Created &amp; Power by GsCore &amp; Design by Oumainory &amp; Data by 白泉幽奈</div></div></body></html>"""
@@ -408,10 +500,12 @@ def _presence_label(profile: DakanuProfile) -> tuple[str, str]:
     presence = profile.get("presence", {})
     if not isinstance(presence, dict):
         return "", ""
-    state = str(presence.get("onlineStatus") or presence.get("state") or "").casefold()
-    if state in {"online", "playing", "in_game", "ingame", "1"}:
-        return "在线", "is-online"
-    if state in {"offline", "away", "0"}:
+    state = str(presence.get("state") or presence.get("statusText") or "").casefold()
+    status_code = presence.get("onlineStatus")
+    if state in {"online", "playing", "in_game", "ingame"} or status_code in {1, "1", "online"}:
+        if state not in {"offline", "away"}:
+            return "在线", "is-online"
+    if state in {"offline", "away"} or status_code in {0, "0", "offline"}:
         return "离线", "is-offline"
     last_online = presence.get("lastOnlineAt")
     if isinstance(last_online, int) and not isinstance(last_online, bool) and last_online > 0:
@@ -457,7 +551,7 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     tier_label, tier_color, _ = _tier(rank["segment"])
     top_label, top_color, _ = _tier(peak_segment(rank, season_view=bool(assets.season_label)))
     season = _escape(profile["meta"]["currentSeason"])
-    roles = profile["roles"][:5]
+    roles = display_roles(profile)
     avatar = _escape(assets.avatar)
     tier_icon = _escape(assets.tier_icon)
     top_tier_icon = _escape(assets.top_tier_icon)
@@ -497,7 +591,16 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
         challenge_rate = leisure.get("winRate")
         rate_text = f" · 胜率 {_pct(challenge_rate)}" if _finite(challenge_rate) is not None else ""
         top_score = leisure.get("topScore")
-        top_text = f" · 最高 {top_score} 分" if isinstance(top_score, int) and not isinstance(top_score, bool) else ""
+        top_star = leisure.get("topStar")
+        top_rank = leisure.get("topRank")
+        extras: list[str] = []
+        if isinstance(top_score, int) and not isinstance(top_score, bool):
+            extras.append(f"最高 {top_score} 分")
+        if isinstance(top_star, int) and not isinstance(top_star, bool) and top_star > 0:
+            extras.append(f"最高 {top_star} 星")
+        if isinstance(top_rank, int) and not isinstance(top_rank, bool) and top_rank > 0:
+            extras.append(f"第 {top_rank} 名")
+        top_text = f" · {' · '.join(extras)}" if extras else ""
         challenge_html = (
             '<div class="rank-card-body">'
             f'<div class="rank-card-icon"><img src="{_escape(assets.challenge_icon)}" alt=""></div>'
@@ -533,11 +636,14 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
         "".join(_mode_block(mode, index) for index, mode in enumerate(modes)) or '<div class="empty">暂无模式统计</div>'
     )
     peers_html = "" if assets.season_label else _peer_block(profile)
+    trend_matches = _trend_matches(profile)
     trend_html = (
         '<div class="trend-empty">本赛季暂无排位分趋势</div>'
         if assets.season_label
         else _trend_block(profile)
     )
+    trend_note = "赛季历史数据" if assets.season_label else f"最近 {len(trend_matches)} 场排位"
+    role_note = "本赛季排位 · 按场次"
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -545,135 +651,135 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
 <title>战绩总览</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba(102,151,213,.2),transparent 34%),radial-gradient(ellipse at 95% 14%,rgba(233,190,128,.17),transparent 30%),linear-gradient(145deg,#e0e8f2 0%,#d4dfec 48%,#e7ecf3 100%);color:#172033;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
-.card{{width:100%;padding:24px 24px 0;background:repeating-linear-gradient(135deg,rgba(95,123,158,.028) 0,rgba(95,123,158,.028) 1px,transparent 1px,transparent 9px),radial-gradient(ellipse at 18% 0%,rgba(255,255,255,.62),transparent 42%),linear-gradient(145deg,rgba(245,248,252,.78),rgba(216,227,240,.76))}}
+body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba(80,126,190,.2),transparent 34%),radial-gradient(ellipse at 95% 14%,rgba(210,160,90,.14),transparent 30%),linear-gradient(145deg,#161c28 0%,#121722 48%,#1a2130 100%);color:#e8eef6;font-family:"MiSans","Microsoft YaHei",sans-serif;font-size:15px}}
+.card{{width:100%;padding:24px 24px 0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 1px,transparent 9px),radial-gradient(ellipse at 18% 0%,rgba(90,140,200,.14),transparent 42%),linear-gradient(145deg,rgba(18,24,36,.94),rgba(12,16,24,.96))}}
 .top{{display:flex;gap:18px;align-items:flex-start}}
-.identity{{width:252px;flex:none;align-self:flex-start;display:flex;flex-direction:column;background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.9);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(39,55,80,.1)}}
-.identity-main{{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:16px;border-bottom:1px solid #e4e9f0}}
+.identity{{width:252px;flex:none;align-self:flex-start;display:flex;flex-direction:column;background:rgba(16,22,34,.78);border:1px solid rgba(255,255,255,.1);border-radius:16px;overflow:hidden;box-shadow:0 10px 28px rgba(0,0,0,.35)}}
+.identity-main{{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:16px;border-bottom:1px solid rgba(255,255,255,.08)}}
 .identity-row{{display:flex;gap:10px;align-items:center;margin-top:6px}}
-.avatar{{width:76px;height:76px;flex:none;border-radius:50%;overflow:hidden;background:#eef2f7;border:2px solid #fff;box-shadow:0 0 0 2px #e2e8f1}}
+.avatar{{width:76px;height:76px;flex:none;border-radius:50%;overflow:hidden;background:#1c2433;border:2px solid rgba(255,255,255,.22);box-shadow:0 0 0 2px rgba(0,0,0,.35)}}
 .avatar img{{display:block;width:100%;height:100%;object-fit:cover}}
-.name{{font-size:20px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-.uid{{color:#7c8799;font-size:13px;letter-spacing:.2px}}
+.name{{font-size:20px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8eef6}}
+.uid{{color:#9aa6b8;font-size:13px;letter-spacing:.2px}}
 .identity-tags{{flex:1;min-width:0;width:100%;display:flex;flex-wrap:wrap;justify-content:flex-end;align-content:flex-start;gap:5px}}
-.season{{display:inline-flex;align-items:center;padding:3px 7px;border-radius:6px;background:#edf3ff;color:#356fd1;font-size:11px;font-weight:600;line-height:1.3;white-space:nowrap}}
+.season{{display:inline-flex;align-items:center;padding:3px 7px;border-radius:6px;background:rgba(69,122,214,.22);color:#9cbcff;font-size:11px;font-weight:600;line-height:1.3;white-space:nowrap}}
 .badges{{display:contents}}
-.badge{{display:inline-flex;align-items:center;padding:3px 7px;border-radius:6px;background:#f1f4f8;color:#68758a;font-size:11px;line-height:1.3;white-space:nowrap}}
-.badge.is-open{{background:#eaf7f0;color:#23865d}}
-.badge.is-clan{{background:#fff3e8;color:#a76222}}
-.badge.is-region{{background:#edf3ff;color:#356fd1}}
-.badge.is-online{{background:#e7f8ee;color:#18834d}}
-.badge.is-offline{{background:#f1f4f8;color:#68758a}}
-.mini-grid{{display:flex;flex-wrap:wrap;gap:1px;background:#e4e9f0}}
-.mini{{width:calc(50% - 1px);padding:10px 14px;background:#fff;min-height:58px}}
-.mini-label{{display:block;color:#818da0;font-size:12px;margin-bottom:4px}}
-.mini-value{{font-size:16px;font-weight:650;color:#263247;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}}
+.badge{{display:inline-flex;align-items:center;padding:3px 7px;border-radius:6px;background:rgba(255,255,255,.08);color:#b4becc;font-size:11px;line-height:1.3;white-space:nowrap}}
+.badge.is-open{{background:rgba(40,150,95,.2);color:#7ddea8}}
+.badge.is-clan{{background:rgba(200,130,50,.2);color:#f0c089}}
+.badge.is-region{{background:rgba(69,122,214,.22);color:#9cbcff}}
+.badge.is-online{{background:rgba(40,150,95,.2);color:#7ddea8}}
+.badge.is-offline{{background:rgba(255,255,255,.08);color:#9aa6b8}}
+.mini-grid{{display:flex;flex-wrap:wrap;gap:1px;background:rgba(255,255,255,.08)}}
+.mini{{width:calc(50% - 1px);padding:10px 14px;background:rgba(255,255,255,.04);min-height:58px}}
+.mini-label{{display:block;color:#9aa6b8;font-size:12px;margin-bottom:4px}}
+.mini-value{{font-size:16px;font-weight:650;color:#e8eef6;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}}
 .rank-box{{padding:15px 16px 17px}}
-.rank-head{{display:flex;align-items:center;justify-content:space-between;color:#7b8799;font-size:12px;margin-bottom:10px}}
+.rank-head{{display:flex;align-items:center;justify-content:space-between;color:#9aa6b8;font-size:12px;margin-bottom:10px}}
 .rank-line{{display:flex;align-items:center;gap:13px}}
-.rank-icon{{width:68px;height:68px;flex:none;border-radius:50%;background:#f2f4f8;overflow:hidden}}
+.rank-icon{{width:68px;height:68px;flex:none;border-radius:50%;background:rgba(255,255,255,.06);overflow:hidden}}
 .rank-icon img{{display:block;width:100%;height:100%;object-fit:contain}}
 .rank-name{{font-size:20px;font-weight:700;color:{tier_color};line-height:1.2}}
-.rank-score{{margin-top:5px;font-size:13px;color:#667387}}
+.rank-score{{margin-top:5px;font-size:13px;color:#b4becc}}
 .rank-pos{{margin-left:auto;text-align:right}}
 .rank-pos b{{display:block;font-size:28px;color:{tier_color};line-height:1}}
-.rank-pos span{{display:block;margin-top:6px;font-size:11px;color:#8b96a8}}
-.rank-foot{{display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid #edf0f5;font-size:12px;color:#7d899b}}
+.rank-pos span{{display:block;margin-top:6px;font-size:11px;color:#9aa6b8}}
+.rank-foot{{display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#9aa6b8}}
 .main{{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}}
-.panel{{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 8px 24px rgba(39,55,80,.09);overflow:hidden}}
-.panel-head{{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #edf0f5}}
-.panel-title{{font-size:15px;font-weight:700;color:#263247}}
-.panel-note{{font-size:12px;color:#8994a6}}
+.panel{{background:rgba(16,22,34,.78);border:1px solid rgba(255,255,255,.1);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.32);overflow:hidden}}
+.panel-head{{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid rgba(255,255,255,.08)}}
+.panel-title{{font-size:15px;font-weight:700;color:#e8eef6}}
+.panel-note{{font-size:12px;color:#9aa6b8}}
 .summary-top{{display:flex;flex-direction:column;gap:12px;padding:16px 17px 14px}}
 .summary-highlight{{display:flex;gap:12px;width:100%}}
-.highlight-item{{flex:1;min-width:0;padding:11px 13px;border-radius:10px;background:#fbfcfe;border:1px solid #e7ebf1}}
+.highlight-item{{flex:1;min-width:0;padding:11px 13px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}}
 .highlight-head{{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}}
-.highlight-label{{font-size:12px;font-weight:700;color:#505e73}}
-.highlight-sub{{font-size:11px;color:#8994a6}}
-.highlight-val{{font-size:26px;font-weight:700;line-height:1.15;color:#263247}}
-.highlight-val.is-blue{{color:#3778e8}}
-.highlight-desc{{margin-top:6px;font-size:11px;color:#8994a6}}
-.bar{{height:6px;margin-top:8px;border-radius:3px;background:#e8edf5;overflow:hidden}}
-.bar-fill{{height:100%;border-radius:3px;background:linear-gradient(90deg,#4b8df2,#2c69d8)}}
-.stats-table{{width:100%;display:flex;flex-direction:column;border:1px solid #e7ebf1;border-radius:10px;overflow:hidden}}
+.highlight-label{{font-size:12px;font-weight:700;color:#c5cedb}}
+.highlight-sub{{font-size:11px;color:#9aa6b8}}
+.highlight-val{{font-size:26px;font-weight:700;line-height:1.15;color:#e8eef6}}
+.highlight-val.is-blue{{color:#7eb0ff}}
+.highlight-desc{{margin-top:6px;font-size:11px;color:#9aa6b8}}
+.bar{{height:6px;margin-top:8px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}}
+.bar-fill{{height:100%;border-radius:3px;background:linear-gradient(90deg,#6ea8ff,#3d7be6)}}
+.stats-table{{width:100%;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden}}
 .stats-row{{display:flex;width:100%}}
-.stat{{flex:1;min-width:0;min-height:56px;padding:8px 10px;background:#fff;border-right:1px solid #e7ebf1}}
+.stat{{flex:1;min-width:0;min-height:56px;padding:8px 10px;background:rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.08)}}
 .stat:last-child{{border-right:0}}
-.stats-row:first-child .stat{{border-bottom:1px solid #e7ebf1}}
-.stat-label{{display:block;color:#8490a2;font-size:11px;margin-bottom:3px;white-space:nowrap}}
-.stat-value{{display:block;font-size:16px;font-weight:650;color:#273348;white-space:nowrap}}
+.stats-row:first-child .stat{{border-bottom:1px solid rgba(255,255,255,.08)}}
+.stat-label{{display:block;color:#9aa6b8;font-size:11px;margin-bottom:3px;white-space:nowrap}}
+.stat-value{{display:block;font-size:16px;font-weight:650;color:#e8eef6;white-space:nowrap}}
 .trend-wrap{{display:flex;align-items:center;gap:12px;padding:8px 14px 12px}}
 .trend-chart{{width:248px;flex:none;min-width:0}}
 .trend-svg{{display:block;width:248px;height:103px}}
 .trend-side{{flex:1;min-width:0;text-align:right}}
-.trend-kicker{{display:block;color:#8792a4;font-size:11px;margin-bottom:5px}}
+.trend-kicker{{display:block;color:#9aa6b8;font-size:11px;margin-bottom:5px}}
 .trend-tier{{font-size:16px;font-weight:700;line-height:1.25}}
-.trend-score{{margin-top:5px;color:#596579;font-size:13px;white-space:nowrap}}
+.trend-score{{margin-top:5px;color:#c5cedb;font-size:13px;white-space:nowrap}}
 .trend-net{{margin-top:8px;font-size:26px;font-weight:700;line-height:1}}
-.trend-net.is-up{{color:#ef5d5d}}
-.trend-net.is-down{{color:#3f92e8}}
-.trend-record{{margin-top:7px;color:#8994a6;font-size:11px;white-space:nowrap}}
-.trend-empty{{padding:30px 17px;color:#98a2b2;text-align:center;font-size:13px}}
-.rank-stack{{display:flex;flex-direction:column;gap:1px;background:#e7ebf1}}
-.rank-card{{padding:12px 14px;background:#fff}}
-.rank-card-head{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;color:#7b8799;font-size:11px;white-space:nowrap}}
+.trend-net.is-up{{color:#ef7a7a}}
+.trend-net.is-down{{color:#6ea8ff}}
+.trend-record{{margin-top:7px;color:#9aa6b8;font-size:11px;white-space:nowrap}}
+.trend-empty{{padding:30px 17px;color:#9aa6b8;text-align:center;font-size:13px}}
+.rank-stack{{display:flex;flex-direction:column;gap:1px;background:rgba(255,255,255,.08)}}
+.rank-card{{padding:12px 14px;background:rgba(255,255,255,.04)}}
+.rank-card-head{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;color:#9aa6b8;font-size:11px;white-space:nowrap}}
 .rank-card-body{{display:flex;align-items:center;gap:10px}}
-.rank-card-icon{{width:52px;height:52px;flex:none;border-radius:50%;background:#f3f5f8;overflow:hidden}}
+.rank-card-icon{{width:52px;height:52px;flex:none;border-radius:50%;background:rgba(255,255,255,.06);overflow:hidden}}
 .rank-card-icon img{{display:block;width:100%;height:100%;object-fit:contain}}
 .rank-card-info{{flex:1;min-width:0}}
 .rank-card-name{{font-size:15px;font-weight:700;line-height:1.25}}
-.rank-card-sub{{margin-top:4px;color:#788497;font-size:11px;white-space:nowrap}}
+.rank-card-sub{{margin-top:4px;color:#b4becc;font-size:11px;white-space:normal;line-height:1.35}}
 .rank-card-right{{flex:none;margin-left:auto;text-align:right}}
-.rank-card-right b{{display:block;font-size:18px;line-height:1.1;color:#3c485b}}
-.rank-card-right span{{display:block;margin-top:5px;color:#929cad;font-size:10px}}
-.challenge-empty{{padding:18px 14px;color:#9aa4b4;font-size:12px;text-align:center;background:#fff}}
-.medals{{padding:10px 13px;background:#fff;border-top:1px solid #e7ebf1}}
-.medals-title{{margin-bottom:7px;color:#7b8799;font-size:11px}}
+.rank-card-right b{{display:block;font-size:18px;line-height:1.1;color:#e8eef6}}
+.rank-card-right span{{display:block;margin-top:5px;color:#9aa6b8;font-size:10px}}
+.challenge-empty{{padding:18px 14px;color:#9aa6b8;font-size:12px;text-align:center;background:rgba(255,255,255,.04)}}
+.medals{{padding:10px 13px;background:rgba(255,255,255,.04);border-top:1px solid rgba(255,255,255,.08)}}
+.medals-title{{margin-bottom:7px;color:#9aa6b8;font-size:11px}}
 .medals-list{{display:flex;flex-wrap:wrap;gap:6px}}
-.medal-item{{display:flex;align-items:center;gap:4px;max-width:100%;padding:3px 6px;border:1px solid #e7ebf1;border-radius:7px;background:#fbfcfe;color:#5e6b7e;font-size:9px;white-space:nowrap}}
-.medal-item img,.medal-fallback{{display:flex;width:18px;height:18px;flex:none;align-items:center;justify-content:center;border-radius:50%;object-fit:contain;background:#edf2f8;color:#9a7b2e;font-size:9px;font-weight:700}}
-.baseplate{{padding:12px 14px;background:#fff;display:flex;flex-direction:column}}
-.baseplate-label{{display:flex;justify-content:space-between;color:#7b8799;font-size:11px;margin-bottom:8px}}
-.baseplate-stage{{position:relative;width:100%;height:490px;border-radius:8px;overflow:hidden;background:#f3f6fa}}
-.baseplate-art{{position:absolute;left:10%;top:9%;right:10%;bottom:13%;border-radius:6px;overflow:hidden;background:#eef2f7}}
+.medal-item{{display:flex;align-items:center;gap:4px;max-width:100%;padding:3px 6px;border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(255,255,255,.05);color:#c5cedb;font-size:9px;white-space:nowrap}}
+.medal-item img,.medal-fallback{{display:flex;width:18px;height:18px;flex:none;align-items:center;justify-content:center;border-radius:50%;object-fit:contain;background:rgba(255,255,255,.08);color:#e0b052;font-size:9px;font-weight:700}}
+.baseplate{{padding:12px 14px;background:rgba(255,255,255,.04);display:flex;flex-direction:column}}
+.baseplate-label{{display:flex;justify-content:space-between;color:#9aa6b8;font-size:11px;margin-bottom:8px}}
+.baseplate-stage{{position:relative;width:100%;height:490px;border-radius:8px;overflow:hidden;background:#0f141d}}
+.baseplate-art{{position:absolute;left:10%;top:9%;right:10%;bottom:13%;border-radius:6px;overflow:hidden;background:#1c2433}}
 .baseplate-art.is-full{{left:0;top:0;right:0;bottom:0;border-radius:8px}}
 .baseplate-art img{{display:block;width:100%;height:100%;object-fit:cover;object-position:center 26%}}
 .baseplate-frame{{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}}
 .baseplate-frame img{{display:block;width:100%;height:100%;object-fit:fill}}
-.stat-value.is-blue{{color:#3778e8}}
-.stat-value.is-gold{{color:#c39023}}
+.stat-value.is-blue{{color:#7eb0ff}}
+.stat-value.is-gold{{color:#e0b052}}
 .complete-panel{{padding:0}}
 .lower{{display:flex;flex-direction:column;gap:14px}}
 .list{{padding:5px 0}}
 .role-list{{display:flex;gap:8px;padding:12px 14px}}
-.role-card{{flex:1;min-width:0;padding:7px 5px 8px;border:1px solid #e7ebf1;border-radius:10px;background:#fbfcfe;text-align:center}}
-.role-img{{width:100%;height:84px;border-radius:7px;overflow:hidden;background:#edf2f8;margin-bottom:6px}}
+.role-card{{flex:1;min-width:0;padding:7px 5px 8px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.05);text-align:center}}
+.role-img{{width:100%;height:84px;border-radius:7px;overflow:hidden;background:#1c2433;margin-bottom:6px}}
 .role-img img{{display:block;width:100%;height:100%;object-fit:cover;object-position:center top}}
-.role-name{{font-size:12px;font-weight:700;color:#344156;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-.role-rate{{margin-top:2px;font-size:14px;font-weight:700;color:#3778e8}}
-.role-count{{margin-top:2px;font-size:10px;color:#7b8799;white-space:nowrap}}
-.role-kd{{margin-top:1px;font-size:10px;color:#929cac;font-family:"Mono",Consolas,monospace;white-space:nowrap}}
-.mode-block{{padding:9px 14px;border-bottom:1px solid #f2f4f8}}
+.role-name{{font-size:11px;font-weight:700;color:#e8eef6;line-height:1.25;white-space:normal;word-break:break-word}}
+.role-rate{{margin-top:2px;font-size:14px;font-weight:700;color:#7eb0ff}}
+.role-count{{margin-top:2px;font-size:10px;color:#9aa6b8;white-space:nowrap}}
+.role-kd{{margin-top:1px;font-size:10px;color:#9aa6b8;font-family:"Mono",Consolas,monospace;white-space:nowrap}}
+.mode-block{{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.08)}}
 .mode-block:last-child{{border-bottom:0}}
-.mode-head{{display:flex;justify-content:space-between;color:#4a566b;font-size:13px;font-weight:600;margin-bottom:8px}}
+.mode-head{{display:flex;justify-content:space-between;color:#d5deea;font-size:13px;font-weight:600;margin-bottom:8px}}
 .mode-name{{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}}
-.mode-head span:last-child{{color:#97a1b1;font-weight:400;font-size:12px}}
-.mode-grid{{display:flex;flex-direction:column;border:1px solid #edf0f5;border-radius:8px;overflow:hidden}}
+.mode-head span:last-child{{color:#9aa6b8;font-weight:400;font-size:12px}}
+.mode-grid{{display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden}}
 .mode-grid-row{{display:flex;width:100%}}
-.mode-grid .stat{{padding:6px 8px;width:33.3333%;min-height:48px;border-right:1px solid #edf0f5;border-bottom:1px solid #edf0f5}}
+.mode-grid .stat{{padding:6px 8px;width:33.3333%;min-height:48px;border-right:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}}
 .mode-grid-row:last-child .stat{{border-bottom:0}}
 .mode-grid .stat:nth-child(3){{border-right:0}}
 .mode-grid .stat-label{{font-size:10px}}
 .mode-grid .stat-value{{font-size:14px}}
 .peer-columns{{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:11px 13px}}
-.peer-column{{min-width:0;padding:8px;border:1px solid #e7ebf1;border-radius:10px;background:#fbfcfe}}
-.peer-column-title{{margin-bottom:5px;color:#657186;font-size:11px;font-weight:700}}
-.peer-row{{padding:6px 0;border-top:1px solid #edf0f5}}
-.peer-name{{overflow:hidden;color:#344156;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}}
-.peer-meta{{display:flex;justify-content:space-between;gap:4px;margin-top:3px;color:#8994a6;font-size:10px;white-space:nowrap}}
-.peer-empty{{padding:12px 0;color:#98a2b2;text-align:center;font-size:11px}}
-.empty{{padding:22px 17px;color:#98a2b2;text-align:center;font-size:13px}}
-.footer{{text-align:center;padding:8px 2px 6px;color:#929cac;font-size:11px}}
+.peer-column{{min-width:0;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.05)}}
+.peer-column-title{{margin-bottom:5px;color:#c5cedb;font-size:11px;font-weight:700}}
+.peer-row{{padding:6px 0;border-top:1px solid rgba(255,255,255,.08)}}
+.peer-name{{overflow:hidden;color:#e8eef6;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}}
+.peer-meta{{display:flex;justify-content:space-between;gap:4px;margin-top:3px;color:#9aa6b8;font-size:10px;white-space:nowrap}}
+.peer-empty{{padding:12px 0;color:#9aa6b8;text-align:center;font-size:11px}}
+.empty{{padding:22px 17px;color:#9aa6b8;text-align:center;font-size:13px}}
+.footer{{text-align:center;padding:8px 2px 6px;color:#8b95a6;font-size:11px}}
 </style></head>
 <body><div class="card">
 <div class="top">
@@ -738,7 +844,7 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba
               <span class="highlight-label">K/D · KDA</span>
               <span class="highlight-sub">{summary["kills"]} / {summary["deaths"]} / {summary["assists"]}</span>
             </div>
-            <div class="highlight-val">{_num(summary["kd"], 2)} <small style="font-size:15px;color:#788497;font-weight:400">/ {_num(summary["kda"], 2)}</small></div>
+            <div class="highlight-val">{_num(summary["kd"], 2)} <small style="font-size:15px;color:#9aa6b8;font-weight:400">/ {_num(summary["kda"], 2)}</small></div>
             <div class="highlight-desc">总击杀 / 死亡 / 助攻</div>
           </div>
         </div>
@@ -758,9 +864,9 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba
         </div>
       </div>
     </div>
-    <div class="panel"><div class="panel-head"><span class="panel-title">排位分趋势</span><span class="panel-note">{"赛季历史数据" if assets.season_label else "最近 12 场排位"}</span></div>{trend_html}</div>
+    <div class="panel"><div class="panel-head"><span class="panel-title">排位分趋势</span><span class="panel-note">{trend_note}</span></div>{trend_html}</div>
     <div class="lower">
-      <div class="panel"><div class="panel-head"><span class="panel-title">角色使用</span><span class="panel-note">按场次</span></div><div class="role-list">{roles_html}</div></div>
+      <div class="panel"><div class="panel-head"><span class="panel-title">角色使用</span><span class="panel-note">{role_note}</span></div><div class="role-list">{roles_html}</div></div>
       <div class="panel"><div class="panel-head"><span class="panel-title">模式统计</span><span class="panel-note">{season}</span></div>{modes_html}</div>
       {peers_html}
     </div>

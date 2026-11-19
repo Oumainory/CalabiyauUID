@@ -7,7 +7,13 @@ from pathlib import Path
 
 from gsuid_core.models import Event
 
-from ..utils.api.dakanu import DakanuError, role_image_url, fetch_season_data, fetch_ranking_seasons
+from ..utils.api.dakanu import (
+    DakanuError,
+    role_image_url,
+    fetch_season_data,
+    fetch_ranking_seasons,
+    unpublished_current_season,
+)
 from ..utils.downloader import resolve_image
 from ..utils.helper.assets import (
     local_role_image,
@@ -27,6 +33,8 @@ from ..utils.render.html.summary_card import (
     peak_segment,
     render_summary_card,
     challenge_tier_index,
+    display_roles,
+    previous_season_ranked,
 )
 
 
@@ -66,11 +74,18 @@ async def render_snapshot_card(
         if isinstance(season_leisure, dict):
             leisure = _normalize_season_leisure(season_leisure)
     if season_id is not None:
-        season = await fetch_season_data(profile["player"]["id"], season_id, region=region)
+        try:
+            season = await fetch_season_data(profile["player"]["id"], season_id, region=region)
+        except DakanuError:
+            season = None
         if season is None:
-            label = season_label or f"赛季 ID {season_id}"
-            raise DakanuError(f"没有找到 {label} 的生涯数据。该赛季可能尚未收录或站点暂时不可用。")
-        profile, leisure = _season_profile(profile, season, season_label)
+            local = _local_season_profile(profile, season_id, season_label)
+            if local is None:
+                label = season_label or f"赛季 ID {season_id}"
+                raise DakanuError(f"没有找到 {label} 的生涯数据。该赛季可能尚未收录或站点暂时不可用。")
+            profile, leisure = local
+        else:
+            profile, leisure = _season_profile(profile, season, season_label)
     avatar_id = profile["player"]["avatarId"]
     avatar_url = f"https://www.dakanu.com/avatars/{avatar_id}.webp"
     baseplate_url = f"https://www.dakanu.com/baseplates-lg/{avatar_id}.webp"
@@ -87,7 +102,7 @@ async def render_snapshot_card(
     if avatar_path is None or (rank_tier and tier_path is None) or (top_tier and top_tier_path is None):
         raise DakanuError("玩家图片读取失败，请稍后再试。")
     role_paths: list[Path | None] = []
-    for role in profile["roles"][:5]:
+    for role in display_roles(profile):
         role_id = role["roleId"]
         role_url = role_image_url(role_id)
         role_paths.append(await resolve_image(role_url, local_role_image(role_id)))
@@ -143,12 +158,17 @@ async def build_summary_card(player_id: str, *, region: str = "cn") -> bytes:
     return await render_snapshot_card(snapshot, region=region)
 
 
-async def resolve_season_label(label: str, *, region: str = "cn") -> tuple[int, str] | None:
-    """按站点赛季列表查找标签对应的 season_id。"""
+async def resolve_season_label(
+    label: str,
+    *,
+    region: str = "cn",
+    current_label: str | None = None,
+) -> tuple[int | None, str] | None:
+    """按站点赛季列表查找标签对应的 season_id；当前赛季尚未入表时返回 id 为空。"""
     payload = await fetch_ranking_seasons(region=region)
     seasons = payload.get("seasons", [])
     if not isinstance(seasons, list):
-        return None
+        seasons = []
     normalized = label.strip().casefold()
     for season in seasons:
         if not isinstance(season, dict):
@@ -162,6 +182,11 @@ async def resolve_season_label(label: str, *, region: str = "cn") -> tuple[int, 
             and not isinstance(season_id, bool)
         ):
             return season_id, season_label
+    if current_label and current_label.strip().casefold() == normalized:
+        return None, current_label.strip().upper() if current_label.strip().upper().startswith("S") else current_label.strip()
+    inferred = unpublished_current_season(label, seasons)
+    if inferred:
+        return None, inferred
     return None
 
 
@@ -182,6 +207,72 @@ async def _season_label_by_id(season_id: int, *, region: str = "cn") -> str:
         ):
             return season["label"].strip()
     return ""
+
+
+
+
+def _local_season_profile(profile: dict[str, object], season_id: int, label: str | None):
+    """站点赛季详情不可用时，用快照里的上个赛季排位回退。"""
+    rank = profile.get("rank") if isinstance(profile.get("rank"), dict) else {}
+    historical_id = rank.get("historicalSegmentSeason")
+    historical_segment = rank.get("historicalSegment")
+    if not (isinstance(historical_id, int) and not isinstance(historical_id, bool) and historical_id == season_id):
+        return None
+    if not (isinstance(historical_segment, int) and not isinstance(historical_segment, bool)):
+        return None
+    matches = previous_season_ranked(profile)  # type: ignore[arg-type]
+    if not matches:
+        return None
+        wins = sum(1 for match in matches if match.get("result") == "win")
+    losses = sum(1 for match in matches if match.get("result") == "lose")
+    kills = sum(match.get("kills") or 0 for match in matches)
+    deaths = sum(match.get("deaths") or 0 for match in matches)
+    assists = sum(match.get("assists") or 0 for match in matches)
+    mvp_count = sum(1 for match in matches if match.get("mvp"))
+    scores = [
+        match["divisionScore"]
+        for match in matches
+        if isinstance(match.get("divisionScore"), int) and not isinstance(match.get("divisionScore"), bool)
+    ]
+    peak_score = max(scores) if scores else None
+    last_score = scores[-1] if scores else None
+    result = deepcopy(profile)
+    result["matches"] = matches
+    result["historyMatches"] = []
+    result["summary"] = {
+        "rounds": len(matches),
+        "wins": wins,
+        "losses": losses,
+        "winRate": wins / len(matches) if matches else 0.0,
+        "kills": kills,
+        "deaths": deaths,
+        "assists": assists,
+        "kd": kills / deaths if deaths else float(kills),
+        "kda": (kills + assists) / deaths if deaths else float(kills + assists),
+        "avgKill": kills / len(matches),
+        "avgDeath": deaths / len(matches),
+        "avgAssist": assists / len(matches),
+        "damage": 0,
+        "avgDamage": None,
+        "roundAveDamage": None,
+        "headshotRate": None,
+        "mvpCount": mvp_count,
+        "mvpRate": mvp_count / len(matches),
+    }
+    selected = {**rank}
+    selected["segment"] = historical_segment
+    if last_score is not None:
+        selected["divisionScore"] = last_score
+    selected["topSegment"] = historical_segment
+    if peak_score is not None:
+        selected["topDivisionScore"] = peak_score
+    result["rank"] = selected
+    meta = result.get("meta")
+    display_label = label or f"赛季 ID {season_id}"
+    if isinstance(meta, dict):
+        meta["currentSeason"] = display_label
+    # roles/modes will be recomputed from the replaced matches during render
+    return result, None
 
 
 def _season_profile(profile: dict[str, object], season: dict[str, object], label: str | None):

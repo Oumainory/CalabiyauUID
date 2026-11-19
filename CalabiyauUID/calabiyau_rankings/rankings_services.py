@@ -3,7 +3,7 @@
 import re
 import asyncio
 
-from ..utils.api.dakanu import DakanuError, fetch_rankings, fetch_ranking_types, fetch_ranking_seasons
+from ..utils.api.dakanu import DakanuError, fetch_rankings, fetch_ranking_types, fetch_ranking_seasons, unpublished_current_season
 from ..utils.helper.map_images import load_map_images
 from ..utils.helper.role_images import load_role_images
 from ..utils.helper.player_images import load_avatar_images
@@ -74,6 +74,9 @@ async def _season_id(label: str | None, region: str) -> tuple[int | None, str]:
             and not isinstance(season_id, bool)
         ):
             return season_id, season_label
+    inferred = unpublished_current_season(label, seasons)
+    if inferred:
+        return None, inferred
     raise DakanuError(f"没有在 Dakanu 赛季列表中找到「{label}」。请确认赛季标签后重试。")
 
 
