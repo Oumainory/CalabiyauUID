@@ -55,12 +55,105 @@ def peak_segment(rank: DakanuRank, *, season_view: bool) -> int:
 def _historical_score(profile: DakanuProfile) -> int | None:
     scores = [
         match["divisionScore"]
-        for match in (*profile["matches"], *profile["historyMatches"])
-        if "RANK" in match["mode"]
-        and isinstance(match["divisionScore"], int)
-        and not isinstance(match["divisionScore"], bool)
+        for match in _ranked_matches(profile)
+        if isinstance(match["divisionScore"], int) and not isinstance(match["divisionScore"], bool)
     ]
     return max(scores) if scores else None
+
+
+def _match_time(match: DakanuMatch) -> int:
+    played_at = match.get("playedAt") or 0
+    return played_at // 1000 if played_at > 10_000_000_000 else played_at
+
+
+def _ranked_matches(profile: DakanuProfile) -> list[DakanuMatch]:
+    ranked: list[DakanuMatch] = []
+    seen: set[object] = set()
+    for match in (*profile["matches"], *profile["historyMatches"]):
+        room_id = match["roomId"]
+        score = match["divisionScore"]
+        if "RANK" not in match["mode"] or score is None or room_id in seen:
+            continue
+        seen.add(room_id)
+        ranked.append(match)
+    ranked.sort(key=_match_time)
+    return ranked
+
+
+def _current_season_ranked(profile: DakanuProfile) -> list[DakanuMatch]:
+    """从最近一场往回取本赛季排位，遇到跨赛季的长时间间隔且分数断层时停住。"""
+    ranked = _ranked_matches(profile)
+    if not ranked:
+        return []
+    selected = [ranked[-1]]
+    for match in reversed(ranked[:-1]):
+        newer = selected[-1]
+        gap = _match_time(newer) - _match_time(match)
+        newer_score = newer["divisionScore"] or 0
+        older_score = match["divisionScore"] or 0
+        if gap > 7 * 86400 and abs(newer_score - older_score) > 300:
+            break
+        selected.append(match)
+    selected.reverse()
+    return selected
+
+
+def current_score(rank: DakanuRank) -> int | None:
+    """本赛季当前分：优先段位分，缺省或为 0 时用 gradeScore。"""
+    for key in ("divisionScore", "gradeScore"):
+        value = rank.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    value = rank.get("divisionScore")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _fill_season_stats(profile: DakanuProfile, summary: DakanuSummary) -> DakanuSummary:
+    """站点本赛季摘要若缺击杀等字段，用本赛季排位对局补上。"""
+    matches = _current_season_ranked(profile)
+    if not matches:
+        return summary
+    kills = sum(match["kills"] or 0 for match in matches)
+    deaths = sum(match["deaths"] or 0 for match in matches)
+    assists = sum(match["assists"] or 0 for match in matches)
+    mvp_count = sum(1 for match in matches if match.get("mvp"))
+    result = dict(summary)
+    api_deaths = summary.get("deaths")
+    api_assists = summary.get("assists")
+    deaths_match = api_deaths in (deaths, 0, None)
+    assists_match = api_assists in (assists, 0, None)
+    if result.get("kills") in (0, None) and kills > 0 and deaths_match and assists_match:
+        result["kills"] = kills
+        if deaths > 0:
+            result["kd"] = kills / deaths
+            result["kda"] = (kills + assists) / deaths
+        if result.get("avgKill") in (0, None):
+            result["avgKill"] = kills / len(matches)
+        if result.get("avgDeath") in (0, None) and result.get("deaths") in (0, None, deaths):
+            result["avgDeath"] = deaths / len(matches)
+        if result.get("avgAssist") in (0, None) and result.get("assists") in (0, None, assists):
+            result["avgAssist"] = assists / len(matches)
+        if result.get("avgDamage") == 0 and result.get("damage") in (0, None):
+            result["avgDamage"] = None  # type: ignore[assignment]
+            result["roundAveDamage"] = None  # type: ignore[assignment]
+    if result.get("mvpCount") in (0, None) and mvp_count > 0:
+        result["mvpCount"] = mvp_count
+        result["mvpRate"] = mvp_count / len(matches)
+    return result  # type: ignore[return-value]
+
+
+def _display_modes(profile: DakanuProfile) -> list[DakanuMode]:
+    modes = list(profile["modes"][:3])
+    matches = _current_season_ranked(profile)
+    if len(modes) != 1 or not matches:
+        return modes
+    mode = dict(modes[0])
+    label = mode.get("label")
+    if isinstance(label, str) and label not in {"", "unknown"}:
+        return modes
+    mode["label"] = matches[0].get("modeLabel") or "排位"
+    filled = _fill_season_stats(profile, mode)  # type: ignore[arg-type]
+    return [filled]  # type: ignore[list-item]
 
 
 def _tier(segment: int) -> tuple[str, str, str]:
@@ -131,16 +224,7 @@ def _stat(label: str, value: str, tone: str = "") -> str:
 
 
 def _trend_matches(profile: DakanuProfile) -> list[DakanuMatch]:
-    seen: set[object] = set()
-    ranked: list[DakanuMatch] = []
-    for match in (*profile["matches"], *profile["historyMatches"]):
-        room_id = match["roomId"]
-        if "RANK" not in match["mode"] or match["divisionScore"] is None or room_id in seen:
-            continue
-        seen.add(room_id)
-        ranked.append(match)
-    ranked.sort(key=lambda match: match["playedAt"] or 0)
-    return ranked[-_TREND_POINTS:]
+    return _current_season_ranked(profile)[-_TREND_POINTS:]
 
 
 def _trend_svg(matches: list[DakanuMatch]) -> str:
@@ -223,13 +307,15 @@ def _trend_block(profile: DakanuProfile) -> str:
     tier_label, tier_color, _ = _tier(rank["segment"])
     net_class = "is-up" if net >= 0 else "is-down"
     net_text = f"+{net}" if net >= 0 else str(net)
+    points = current_score(rank)
+    score_text = f"{points} 分" if points is not None else "— 分"
     return (
         '<div class="trend-wrap">'
         f'<div class="trend-chart">{_trend_svg(matches)}</div>'
         '<div class="trend-side">'
         f'<span class="trend-kicker">最近 {len(matches)} 场排位</span>'
         f'<div class="trend-tier" style="color:{tier_color}">{_escape(tier_label)}</div>'
-        f'<div class="trend-score">{rank["divisionScore"]} 分</div>'
+        f'<div class="trend-score">{score_text}</div>'
         f'<div class="trend-net {net_class}">{net_text}</div>'
         f'<div class="trend-record">{wins} 胜 {losses} 负 {draws} 平</div>'
         "</div></div>"
@@ -363,12 +449,15 @@ def _medals_html(assets: SummaryAssets) -> str:
 def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     player = profile["player"]
     rank = profile["rank"]
-    summary: DakanuSummary = profile["summary"]
+    summary = _fill_season_stats(profile, profile["summary"])
+    modes = _display_modes(profile)
+    current_points = current_score(rank)
+    current_score_text = f"{current_points} 段位分" if current_points is not None else "暂无段位分"
+    overview_title = "赛季总览" if assets.season_label else "本赛季总览"
     tier_label, tier_color, _ = _tier(rank["segment"])
     top_label, top_color, _ = _tier(peak_segment(rank, season_view=bool(assets.season_label)))
     season = _escape(profile["meta"]["currentSeason"])
     roles = profile["roles"][:5]
-    modes = profile["modes"][:3]
     avatar = _escape(assets.avatar)
     tier_icon = _escape(assets.tier_icon)
     top_tier_icon = _escape(assets.top_tier_icon)
@@ -405,14 +494,15 @@ def render_summary_html(profile: DakanuProfile, assets: SummaryAssets) -> str:
     ):
         challenge_name, challenge_color = _challenge_label(leisure["segment"])
         challenge_score = leisure.get("score", 0)
-        challenge_rate = leisure.get("winRate", 0.0)
+        challenge_rate = leisure.get("winRate")
+        rate_text = f" · 胜率 {_pct(challenge_rate)}" if _finite(challenge_rate) is not None else ""
         top_score = leisure.get("topScore")
-        top_text = f" · 最高 {top_score} 分" if isinstance(top_score, int) else ""
+        top_text = f" · 最高 {top_score} 分" if isinstance(top_score, int) and not isinstance(top_score, bool) else ""
         challenge_html = (
             '<div class="rank-card-body">'
             f'<div class="rank-card-icon"><img src="{_escape(assets.challenge_icon)}" alt=""></div>'
             f'<div class="rank-card-info"><div class="rank-card-name" style="color:{challenge_color}">{_escape(challenge_name)}</div>'
-            f'<div class="rank-card-sub">{challenge_score} 挑战分{top_text} · 胜率 {_pct(challenge_rate)}</div></div>'
+            f'<div class="rank-card-sub">{challenge_score} 挑战分{top_text}{rate_text}</div></div>'
             f'<div class="rank-card-right"><b>{leisure.get("star", 0)}</b><span>星级</span></div>'
             "</div>"
         )
@@ -607,7 +697,7 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba
         <div class="rank-card-head"><span>排位赛 · {"赛季最终段位" if assets.season_label else "当前段位"}</span><span>{season}</span></div>
         <div class="rank-card-body">
           <div class="rank-card-icon"><img src="{tier_icon}" alt=""></div>
-          <div class="rank-card-info"><div class="rank-card-name" style="color:{tier_color}">{_escape(tier_label)}</div><div class="rank-card-sub">{rank["divisionScore"]} 段位分</div></div>
+          <div class="rank-card-info"><div class="rank-card-name" style="color:{tier_color}">{_escape(tier_label)}</div><div class="rank-card-sub">{current_score_text}</div></div>
           <div class="rank-card-right"><b>{_escape(rank_pos)}</b><span>段位排名</span></div>
         </div>
       </div>
@@ -632,7 +722,7 @@ body{{width:100%;min-height:1px;background:radial-gradient(ellipse at 9% 2%,rgba
   </div>
   <div class="main">
     <div class="panel">
-      <div class="panel-head"><span class="panel-title">生涯总览</span><span class="panel-note">{summary["rounds"]} 场对局</span></div>
+      <div class="panel-head"><span class="panel-title">{overview_title}</span><span class="panel-note">{summary["rounds"]} 场对局</span></div>
       <div class="summary-top">
         <div class="summary-highlight">
           <div class="highlight-item">
